@@ -1,0 +1,95 @@
+*** Begin Patch
+*** Add File: templates/index.html
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="utf-8">
++    <meta name="viewport" content="width=device-width,initial-scale=1">
++    <title>Roadmap Planner</title>
++  </head>
++  <body>
++    <h1>Welcome to Roadtrip Planner</h1>
++    <p><a href="{{ url_for('sign_up') }}">Sign up / Sign in</a> | <a href="{{ url_for('dashboard') }}">Dashboard</a></p>
++  </body>
++</html>
++
+*** End Patch
+*** Begin Patch
+*** Add File: templates/dashboard.html
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="utf-8">
++    <meta name="viewport" content="width=device-width,initial-scale=1">
++    <title>Dashboard</title>
++  </head>
++  <body>
++    <h1>Your Roadmaps</h1>
++    {% if roadmaps %}
++      <ul>
++      {% for r in roadmaps %}
++        <li>{{ r.get('name', 'Unnamed') }}</li>
++      {% endfor %}
++      </ul>
++    {% else %}
++      <p>No roadmaps found.</p>
++    {% endif %}
++    <p><a href="{{ url_for('add_place') }}">Add place</a></p>
++  </body>
++</html>
++
+*** End Patch
+*** Begin Patch
+*** Add File: templates/add_place.html
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="utf-8">
++    <meta name="viewport" content="width=device-width,initial-scale=1">
++    <title>Add place</title>
++  </head>
++  <body>
++    <h1>Add place</h1>
++    <form method="post">
++      <label>Place name: <input name="place_name"></label>
++      <button type="submit">Add</button>
++    </form>
++    <p><a href="{{ url_for('dashboard') }}">Back to dashboard</a></p>
++  </body>
++</html>
++
+*** End Patch
+*** Begin Patch
+*** Add File: templates/sign_up.html
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="utf-8">
++    <meta name="viewport" content="width=device-width,initial-scale=1">
++    <title>Sign up</title>
++  </head>
++  <body>
++    <h1>Sign up / Demo sign in</h1>
++    <form method="post">
++      <label>UID (demo): <input name="uid"></label>
++      <button type="submit">Sign in</button>
++    </form>
++  </body>
++</html>
++
+*** End Patch
+*** Begin Patch
+*** Update File: README.md
+@@
+ ## Recommended next refactors (I can do these on request)
+ 
+ * Split into a package (app/ with blueprints `auth`, `roadmaps`, `maps`).
+ * Add proper authentication using Firebase Authentication (client + server verification).
+ * Add unit tests and CI.
+ * Reintroduce only the templates and assets you actually need from the original repo.
++
++## Templates restored
++
++I restored minimal `templates/` files (index, dashboard, add_place, sign_up) in a branch for review.
++If you want the original UI templates from the earlier upload instead, I can prepare a separate patch that restores those files (excluding any secrets).
+*** End Patch

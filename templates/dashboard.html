@@ -1,13 +1,47 @@
-<!doctype html>
-<title>Dashboard</title>
-<h1>Your Roadmaps</h1>
-{% if roadmaps %}
-  <ul>
-  {% for r in roadmaps %}
-    <li>{{ r.get('name', 'Unnamed') }}</li>
-  {% endfor %}
-  </ul>
-{% else %}
-  <p>No roadmaps found.</p>
-{% endif %}
-<p><a href="{{ url_for('add_place') }}">Add place</a></p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Dashboard</title>
+</head>
+<body>
+    <h1>Roadmap Dashboard</h1>
+
+    <form method="POST">
+        <button type="submit" name="create_roadmap">Create New Roadmap</button>
+    </form>
+
+    <form method="POST" style="margin-top: 20px;">
+        <fieldset>
+            <legend>Select a roadmap:</legend>
+            {% for label in roadmap_labels %}
+                <label>
+                    <input type="radio" name="selected_roadmap" value="{{ label }}" required>
+                    {{ label }}
+                </label><br />
+            {% else %}
+                <p>No roadmaps found.</p>
+            {% endfor %}
+        </fieldset>
+        <button type="submit">Submit</button>
+    </form>
+
+
+    <script>
+    firebase.auth().currentUser.getIdToken(/* forceRefresh */ true)
+      .then((idToken) => {
+        // send this token to your Flask backend
+        fetch("/dashboard", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + idToken
+          },
+          body: JSON.stringify({ someData: "value" })
+        });
+        console.log(idToken)
+
+      });
+    </script>
+</body>
+</html>

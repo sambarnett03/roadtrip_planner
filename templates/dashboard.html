@@ -1,0 +1,13 @@
+<!doctype html>
+<title>Dashboard</title>
+<h1>Your Roadmaps</h1>
+{% if roadmaps %}
+  <ul>
+  {% for r in roadmaps %}
+    <li>{{ r.get('name', 'Unnamed') }}</li>
+  {% endfor %}
+  </ul>
+{% else %}
+  <p>No roadmaps found.</p>
+{% endif %}
+<p><a href="{{ url_for('add_place') }}">Add place</a></p>

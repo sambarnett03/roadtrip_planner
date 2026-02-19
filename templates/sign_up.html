@@ -1,116 +1,81 @@
-<!DOCTYPE html>
+<!-- templates/sign_up.html (overwrite with this) -->
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Firebase Email/Password Auth</title>
-  <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-auth-compat.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 400px; margin: 40px auto; }
-    input { width: 100%; padding: 8px; margin: 8px 0; }
-    button { width: 100%; padding: 10px; margin: 10px 0; }
-    #message { margin-top: 10px; color: red; }
-  </style>
-</head>
-<body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sign up / Sign in — Roadtrip Planner</title>
+    <style>
+      body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding: 2rem; max-width: 720px; margin: auto; }
+      .card { padding: 1.5rem; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+      input { width: 100%; padding: 0.5rem; margin: 0.5rem 0 1rem; border: 1px solid #ddd; border-radius: 4px; }
+      button { padding: 0.6rem 1rem; border-radius: 6px; border: none; cursor: pointer; }
+      .muted { color: #666; font-size: 0.9rem; }
+      .error { color: #b00020; margin-top: .5rem; }
+      .success { color: #046306; margin-top: .5rem; }
+      .actions { display:flex; gap: 0.5rem; }
+      pre.debug { background:#f6f6f6; padding:0.5rem; border-radius:4px; overflow:auto; font-size:0.85rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Roadtrip Planner — Sign up / Sign in</h1>
 
-  <h2>Sign In / Sign Up</h2>
+    <div class="card">
+      <p class="muted">Create an account with email & password, or sign in to an existing account.</p>
 
-  <input type="email" id="email" placeholder="Email" />
-  <input type="password" id="password" placeholder="Password" />
+      <label>Email
+        <input id="email" type="email" placeholder="you@example.com" />
+      </label>
 
-  <button id="signInBtn">Sign In</button>
-  <button id="signUpBtn">Sign Up</button>
+      <label>Password
+        <input id="password" type="password" placeholder="Choose a secure password" />
+      </label>
 
-  <div id="message"></div>
+      <div class="actions">
+        <button id="btn-signup" type="button">Create account</button> 
+        <button id="btn-signin" type="button">Sign in</button>
+        <button id="btn-signout" type="button" style="display:none;">Sign out</button>
+      </div>
 
-  <script>
-    const firebaseConfig = {
-    apiKey: "AIzaSyCEqG8QpT_6mf03SjJtn83g8pVo5NAVrCU",
-    authDomain: "roadmap-planner-87b0a.firebaseapp.com",
-    projectId: "roadmap-planner-87b0a",
-    storageBucket: "roadmap-planner-87b0a.firebasestorage.app",
-    messagingSenderId: "194176720157",
-    appId: "1:194176720157:web:07e32a7b0b14470c94d5f4",
-    measurementId: "G-Z91BDQR23Y"
-    };
+      <div id="status" role="status" aria-live="polite"></div>
 
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
+    </div>
 
-    const emailInput = document.getElementById('email');
-    const passwordInput = document.getElementById('password');
-    const messageDiv = document.getElementById('message');
+    <p style="margin-top:1rem;">
+      <a href="{{ url_for('dashboard') }}">Back to dashboard</a>
+    </p>
 
-    document.getElementById('signUpBtn').addEventListener('click', () => {
-      const email = emailInput.value;
-      const password = passwordInput.value;
+    <!-- Firebase JS SDKs (compat libs) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
-      auth.createUserWithEmailAndPassword(email, password)
-        .then(userCredential => {
-          messageDiv.style.color = 'green';
-          messageDiv.textContent = 'Signed up successfully! Welcome, ' + userCredential.user.email;
-        })
-        .catch(error => {
-          messageDiv.style.color = 'red';
-          messageDiv.textContent = error.message;
-        });
-    });
+    <!-- Put the server-provided config into a JS object and expose as window.firebaseConfig -->
+    <script>
+      (function(){
+        // These Jinja values should be set by your sign_up route.
+        // They are safe to expose client-side.
+        const cfg = {
+          apiKey: "{{ firebase_api_key|default('', true) }}",
+          authDomain: "{{ firebase_auth_domain|default('', true) }}",
+          projectId: "{{ firebase_project_id|default('', true) }}"
+        };
 
-    document.getElementById('signInBtn').addEventListener('click', () => {
-      const email = emailInput.value;
-      const password = passwordInput.value;
+        // Basic check / fallback
+        if (!cfg.apiKey || !cfg.authDomain) {
+          console.warn("Firebase web config appears empty. Check FIREBASE_API_KEY and FIREBASE_AUTH_DOMAIN env values.");
+        }
+        // Ensure global name that firebase_auth.js expects:
+        window.firebaseConfig = cfg;
+        // Also expose for immediate debug
+        window.__fp_debug = {
+          configProvided: cfg,
+          now: new Date().toISOString()
+        };
+      })();
+    </script>
 
-      auth.signInWithEmailAndPassword(email, password)
-        .then(userCredential => {
-          messageDiv.style.color = 'green';
-          messageDiv.textContent = 'Signed in successfully! Welcome back, ' + userCredential.user.email;
-        })
-        .catch(error => {
-          messageDiv.style.color = 'red';
-          messageDiv.textContent = error.message;
-        });
-    });
+    <!-- Your auth logic -->
+    <script src="{{ url_for('static', filename='js/firebase_auth.js') }}"></script>
 
-
-    auth.onAuthStateChanged(user => {
-      if (user) {
-        messageDiv.style.color = 'green';
-        messageDiv.textContent = `User logged in: ${user.email}`;
-
-        // Get the ID token from Firebase
-        user.getIdToken(/* forceRefresh */ true).then(idToken => {
-          console.log("ID Token from Firebase:", idToken); // 👈 check this in console
-          return fetch("/api/set-session", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": "Bearer " + idToken
-            },
-            body: JSON.stringify({ someData: "hello from frontend" })
-          });
-        })
-        .then(res => {
-          if (!res.ok) throw new Error("Failed to set session");
-          return res.json();
-        })
-        .then(data => {
-          console.log("Server says:", data);
-          window.location.href = "/dashboard";
-        })
-        .catch(err => console.error("Error sending token:", err));
-
-      } else {
-        messageDiv.textContent = '';
-      }
-    });
-
-
-  </script>
-
-
-
-</body>
+  </body>
 </html>

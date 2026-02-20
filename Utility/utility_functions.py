@@ -14,7 +14,9 @@ load_dotenv()
 gmaps_key = os.environ.get('GOOGLE_MAPS_KEY', '')
 gmaps = googlemaps.Client(key=gmaps_key)
 
-def get_place_id(place_name):
+
+
+def get_place_id(place_name): 
     result = gmaps.find_place(
         input=place_name,
         input_type='textquery',
@@ -120,22 +122,21 @@ def plot_drives(m, stops, gmaps_ids, coords):
     
     
     
-def load_filtered_trip_from_csv(filename):
+
+def load_from_fb_format(rows):
     stops = RoadTrip()
     pois = RoadTrip()
     parking = RoadTrip()
-    with open(filename, 'r', encoding="cp1252") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row['Include Drive'] == 'y':
-                stops.add_place(int(row["Location ID"]), row["Name"], row["Description"], row['Overnight'], row['Include Drive'], row['Nickname'], row['Gmaps ID'], row['Latitude'], row['Longitude'], row['Link Titles'], row['Links'])
-            elif row['Include Drive'] == 'p':
-                parking.add_place(int(row["Location ID"]), row["Name"], row["Description"], row['Overnight'], row['Include Drive'], row['Nickname'], row['Gmaps ID'], row['Latitude'], row['Longitude'], row['Link Titles'], row['Links'])
-            else:
-                pois.add_place(int(row["Location ID"]), row["Name"], row["Description"], row['Overnight'], row['Include Drive'], row['Nickname'], row['Gmaps ID'], row['Latitude'], row['Longitude'], row['Link Titles'], row['Links'])
-                
-    return stops, pois, parking
-    
+    for row in rows:
+        if row['inc_drive'] == 'y':
+            print('nickname', row['nickname'])
+            stops.add_place(int(row["id"]), row["name"], row["desc"], row['on'], row['inc_drive'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
+        elif row['inc_drive'] == 'p':
+            parking.add_place(int(row["id"]), row["name"], row["desc"], row['on'], row['inc_drive'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
+        else:
+            pois.add_place(int(row["id"]), row["name"], row["desc"], row['on'], row['inc_drive'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
+            
+    return stops, pois, parking 
     
     
 def load_trip_from_csv(filename):

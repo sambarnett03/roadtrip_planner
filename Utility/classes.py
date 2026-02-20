@@ -1,6 +1,6 @@
 
 class Place:
-    def __init__(self, id, name, desc, on, inc_drive, nickname, gmaps_id=None, lat=None, lng=None, link_titles=None, links=None):
+    def __init__(self, id, name, desc, on, inc_drive, nickname, gmaps_id=None, lat=None, lng=None, link_titles='n', links='n'):
         self.id = id
         self.nickname = nickname
         self.name = name
@@ -8,7 +8,7 @@ class Place:
         self.on = on
         self.inc_drive = inc_drive
         self.gmaps_id = gmaps_id
-        self.lat = lat
+        self.lat = lat 
         self.lng = lng
         self.colour = None
         self.link_titles = link_titles
@@ -19,6 +19,9 @@ class Place:
     
     def to_list(self):
         return [self.id, self.nickname, self.name, self.desc, self.on, self.inc_drive, self.link_titles, self.links]
+    
+    def to_dict(self):
+        return {'id':self.id, 'nickname':self.nickname, 'name':self.name, 'desc':self.desc, 'on':self.on, 'inc_drive':self.inc_drive, 'gmaps_id':self.gmaps_id, 'lat':self.lat, 'lng':self.lng, 'colour':self.colour, 'link titles':self.link_titles, 'links':self.links}
     
     def add_geo_data(self, gmaps_id, lat, lng):
         self.gmaps_id = gmaps_id

@@ -1,3 +1,6 @@
+# Utility/html_edits.py
+import os
+import json
 
 def insert_buttons(html_path, buttons):
     """
@@ -5,7 +8,7 @@ def insert_buttons(html_path, buttons):
 
     Parameters:
     - html_path (str): Path to the HTML file.
-    - buttons (list of tuples): Each tuple is (label, href), e.g. [("Add Marker", "/form?location=France")]
+    - buttons (list of tuples): Each tuple is (label, href).
     """
     button_container = '''
     <div id="button-container">
@@ -41,39 +44,47 @@ def insert_buttons(html_path, buttons):
     </style>
     '''
 
-    # Generate HTML for individual buttons
     buttons_html = "\n".join(
         f'<a href="{href}" class="action-button">{label}</a>' for label, href in buttons
     )
 
-    # Final combined HTML block
     full_html = button_container.format(buttons_html=buttons_html)
 
-    # Inject it just before </body>
     with open(html_path, 'r', encoding='utf-8') as file:
         content = file.read()
 
-    updated_content = content.replace('</body>', full_html + '\n</body>')
-
-    with open(html_path, 'w', encoding='utf-8') as file:
-        file.write(updated_content)
-
-
-
+    # Avoid duplicating if already inserted
+    if '<div id="button-container">' not in content:
+        updated_content = content.replace('</body>', full_html + '\n</body>')
+        with open(html_path, 'w', encoding='utf-8') as file:
+            file.write(updated_content)
 
 
+def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
+    """
+    Injects a sidebar for notes into the HTML.
+    Configures Firestore to use users/{owner_id}/maps/{map_id}/planning/notes
+    Includes Authentication listener to prevent permission errors on load.
+    """
+    
+    # Default config if none provided
+    if not firebase_config:
+        firebase_config = {
+            "apiKey": "AIzaSyCEqG8QpT_6mf03SjJtn83g8pVo5NAVrCU",
+            "authDomain": "roadmap-planner-87b0a.firebaseapp.com",
+            "projectId": "roadmap-planner-87b0a",
+            "storageBucket": "roadmap-planner-87b0a.firebasestorage.app",
+            "messagingSenderId": "194176720157",
+            "appId": "1:194176720157:web:07e32a7b0b14470c94d5f4",
+            "measurementId": "G-Z91BDQR23Y"
+        }
 
+    # Serialize config to JSON for injection
+    config_json = json.dumps(firebase_config)
 
-
-
-
-
-
-def insert_sidebar(html_path):
-    sidebar_code = """
-    <!-- Sidebar CSS -->
+    sidebar_code = f"""
     <style>
-      #mySidebar {
+      #mySidebar {{
         height: 100%;
         width: 0;
         position: fixed;
@@ -86,9 +97,9 @@ def insert_sidebar(html_path):
         transition: 0.3s;
         padding-top: 60px;
         box-shadow: -2px 0 5px rgba(0,0,0,0.5);
-      }
+      }}
 
-      #mySidebar [contenteditable] {
+      #mySidebar [contenteditable] {{
         width: 80%;
         max-height: 70vh;
         margin: 20px;
@@ -100,16 +111,23 @@ def insert_sidebar(html_path):
         display: block;
         line-height: 1.4;
         min-height: 150px;
-      }
+      }}
 
-      #mySidebar .closebtn {
+      /* Visual cue for read-only/loading state */
+      #mySidebar [contenteditable="false"] {{
+        background-color: #f9f9f9;
+        color: #888;
+        cursor: not-allowed;
+      }}
+
+      #mySidebar .closebtn {{
         position: absolute;
         top: 0;
         left: 25px;
         font-size: 36px;
-      }
+      }}
 
-      #openBtn {
+      #openBtn {{
         position: fixed;
         top: 20px;
         right: 20px;
@@ -120,158 +138,179 @@ def insert_sidebar(html_path):
         border: 1px solid gray;
         cursor: pointer;
         box-shadow: 1px 1px 5px rgba(0,0,0,0.3);
-      }
+      }}
 
-      .toggle-container {
+      .toggle-container {{
         margin: 0 20px 10px 20px;
         font-family: Arial, sans-serif;
-      }
+      }}
     </style>
 
-    <!-- Sidebar HTML -->
     <div id="mySidebar">
       <a href="javascript:void(0)" class="closebtn" onclick="closeSidebar()">×</a>
       <div class="toggle-container">
         <label>
           <input type="checkbox" id="toggleMode" />
-          Shared mode
+          Shared mode (Live)
         </label>
       </div>
-      <div id="sharedContent" contenteditable="true"></div>
+      <div id="sharedContent" contenteditable="false"></div>
     </div>
-    <div id="openBtn" onclick="openSidebar()">☰ Info</div>
+    <div id="openBtn" onclick="openSidebar()">☰ Notes</div>
 
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-    <!-- Sidebar JS with Toggle -->
     <script>
       const sidebar = document.getElementById("mySidebar");
       const editableDiv = document.getElementById("sharedContent");
       const toggle = document.getElementById("toggleMode");
 
-      function openSidebar() {
+      function openSidebar() {{
         sidebar.style.width = "300px";
-      }
+      }}
 
-      function closeSidebar() {
+      function closeSidebar() {{
         sidebar.style.width = "0";
-      }
+      }}
 
-      // Your Firebase config
-        const firebaseConfig = {
-        apiKey: "AIzaSyCEqG8QpT_6mf03SjJtn83g8pVo5NAVrCU",
-        authDomain: "roadmap-planner-87b0a.firebaseapp.com",
-        projectId: "roadmap-planner-87b0a",
-        storageBucket: "roadmap-planner-87b0a.firebasestorage.app",
-        messagingSenderId: "194176720157",
-        appId: "1:194176720157:web:07e32a7b0b14470c94d5f4",
-        measurementId: "G-Z91BDQR23Y"
-        };
+      // Initialize Firebase
+      const firebaseConfig = {config_json};
 
-      firebase.initializeApp(firebaseConfig);
+      if (!firebase.apps.length) {{
+          firebase.initializeApp(firebaseConfig);
+      }}
       const db = firebase.firestore();
-      const docRef = db.collection("shared").doc("note");
+      const auth = firebase.auth();
+
+      // IDs injected from Python
+      const ownerId = "{owner_id}";
+      const mapId = "{map_id}";
+      
+      // Reference to the shared note
+      const docRef = db.collection("users").doc(ownerId)
+                       .collection("maps").doc(mapId)
+                       .collection("planning").doc("notes");
 
       let unsubscribe = null;
-      
+      let currentUser = null; 
 
-      function loadShared() {
-        docRef.get().then((doc) => {
-          if (doc.exists) {
-            editableDiv.innerHTML = doc.data().text || "";
-          }
-        });
+      // --- AUTH LISTENER ---
+      // This waits for the browser to verify the user session.
+      // Without this, Firestore requests fail immediately on page load.
+      auth.onAuthStateChanged((user) => {{
+        if (user) {{
+          console.log("Sidebar: User signed in:", user.uid);
+          currentUser = user;
+          
+          // If we are already in shared mode, trigger load now that we have a user
+          if (toggle.checked) {{
+             loadShared(); 
+          }}
+        }} else {{
+          console.log("Sidebar: User currently signed out.");
+          currentUser = null;
+          if (toggle.checked) {{
+             editableDiv.innerHTML = "Please sign in to view shared notes.";
+          }}
+        }}
+      }});
 
-        unsubscribe = docRef.onSnapshot((doc) => {
-          if (doc.exists && document.activeElement !== editableDiv) {
-            editableDiv.innerHTML = doc.data().text || "";
-          }
-        });
+      function loadShared() {{
+        // Lock editing while loading
+        editableDiv.contentEditable = "false";
+        
+        // If auth isn't ready yet, show waiting message.
+        // onAuthStateChanged will call this function again once ready.
+        if (!currentUser) {{
+            editableDiv.innerHTML = "Verifying access...";
+            return;
+        }}
 
-        const access = sessionStorage.getItem("sharedAccess");
-        const correctPassword = "123"; // 🔐 Your chosen password
+        // 1. Clear old listener if exists
+        if (unsubscribe) unsubscribe();
 
-        if (access === "granted") {
-          // Already unlocked
-          editableDiv.contentEditable = "true";
-          editableDiv.oninput = () => {
-            docRef.set({ text: editableDiv.innerHTML });
-          };
+        // 2. Start listening to the document
+        unsubscribe = docRef.onSnapshot((doc) => {{
+          const dbText = (doc.exists && doc.data().text) ? doc.data().text : "";
 
-        } else if (access === "denied") {
-          // Already failed earlier — skip prompt
-          editableDiv.contentEditable = "false";
-          alert("Shared notes are view-only for this session.");
+          // Only update the HTML if the user isn't currently typing
+          if (document.activeElement !== editableDiv) {{
+            editableDiv.innerHTML = dbText;
+          }}
+          
+          // 3. Unlock editing once data is received
+          if (editableDiv.contentEditable === "false") {{
+             editableDiv.contentEditable = "true";
+             
+             // Attach save handler now that it is safe
+             editableDiv.oninput = () => {{
+                docRef.set({{ text: editableDiv.innerHTML }}, {{ merge: true }})
+                .catch((error) => {{
+                    console.error("Error saving note:", error);
+                }});
+             }};
+          }}
+        }}, (error) => {{
+            console.error("Error loading shared notes:", error);
+            if (error.code === 'permission-denied') {{
+                editableDiv.innerHTML = "Access Denied: You are not listed as a collaborator.";
+            }} else {{
+                editableDiv.innerHTML = "Error loading notes: " + error.message;
+            }}
+        }});
+      }}
 
-        } else {
-          // First time — ask for password
-          const password = prompt("Enter password to edit shared notes (leave blank or incorrect to view only):");
+      function loadPersonal() {{
+        // Stop listening to Firestore updates
+        if (unsubscribe) unsubscribe(); 
 
-          if (password === correctPassword) {
-            sessionStorage.setItem("sharedAccess", "granted");
-            editableDiv.contentEditable = "true";
-            editableDiv.oninput = () => {
-              docRef.set({ text: editableDiv.innerHTML });
-            };
-          } else {
-            sessionStorage.setItem("sharedAccess", "denied");
-            editableDiv.contentEditable = "false";
-            alert("Incorrect password. Shared notes are view-only for this session.");
-          }
-        }
-      }
-
-
-
-      
-
-      function loadPersonal() {
-        const saved = localStorage.getItem("personalText");
-        if (saved) editableDiv.innerHTML = saved;
-
-        if (unsubscribe) unsubscribe(); // stop listening to Firestore
-
+        const saved = localStorage.getItem("personalText_" + mapId);
+        editableDiv.innerHTML = saved || "";
+        
         editableDiv.contentEditable = "true";
         
-        editableDiv.oninput = () => {
-          localStorage.setItem("personalText", editableDiv.innerHTML);
-        };
-      }
+        editableDiv.oninput = () => {{
+          localStorage.setItem("personalText_" + mapId, editableDiv.innerHTML);
+        }};
+      }}
 
-      // Set initial mode
-      window.onload = () => {
+      // Set initial mode on page load
+      window.onload = () => {{
         const mode = localStorage.getItem("noteMode") || "shared";
         toggle.checked = mode === "shared";
 
-        if (mode === "shared") {
+        if (mode === "shared") {{
           loadShared();
-        } else {
+        }} else {{
           loadPersonal();
-        }
-      };
+        }}
+      }};
 
-      toggle.onchange = () => {
+      // Handle Toggle Switch
+      toggle.onchange = () => {{
         const newMode = toggle.checked ? "shared" : "personal";
         localStorage.setItem("noteMode", newMode);
 
-        if (newMode === "shared") {
+        if (newMode === "shared") {{
           loadShared();
-        } else {
+        }} else {{
           loadPersonal();
-        }
-      };
+        }}
+      }};
     </script>
     """
 
     # Inject sidebar code into HTML file
     with open(html_path, "r", encoding="utf-8") as f:
         html = f.read()
-        html = html.replace("<head>", "<head>\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">")
+        # Ensure mobile responsiveness
+        if "<meta name=\"viewport\"" not in html:
+            html = html.replace("<head>", "<head>\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">")
 
-    if sidebar_code not in html:
+    # Only inject if not already present
+    if "id=\"mySidebar\"" not in html:
         html = html.replace("</body>", sidebar_code + "\n</body>")
-
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(html)

@@ -38,6 +38,8 @@ def add_route_segment(map_obj, locations, distance, duration, color="blue", weig
 
 def popup_for_places(location_name, link_titles, links, description):
     html_lines = [f"<b>{location_name}</b><br>"]
+    link_titles = 'n'
+    links = 'n'
     
     if link_titles != 'n':
         link_titles = ast.literal_eval(link_titles)

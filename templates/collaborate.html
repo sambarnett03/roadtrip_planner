@@ -1,0 +1,159 @@
+<!-- templates/collaborate.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Collaborators — map {{ map_id }}</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; padding: 22px; background:#f7fafc; color:#111; }
+    .container { max-width:900px; margin: 0 auto; }
+    h1 { margin-bottom: 6px; }
+    .meta { color:#666; margin-bottom: 18px; }
+    .panel { background:white; padding:16px; border-radius:8px; box-shadow: 0 4px 12px rgba(10,10,10,0.04); margin-bottom:12px; }
+    label { display:block; margin-bottom:6px; font-weight:600; }
+    input[type="text"], select { width:100%; padding:8px 10px; border:1px solid #e6e6e6; border-radius:6px; }
+    .row { display:flex; gap:8px; align-items:center; margin-top:8px; }
+    .btn { padding:8px 12px; background:#007BFF; color:white; border-radius:8px; text-decoration:none; border:none; cursor:pointer; }
+    .btn.secondary { background:#f1f5f9; color:#111; border: 1px solid #e6e6e6; }
+    .collab-list { margin-top:12px; }
+    .collab-item { display:flex; justify-content:space-between; padding:8px 10px; border-radius:6px; background:#fbfcfd; border:1px solid #eef2f7; margin-bottom:8px; align-items:center; gap:12px; }
+    .small { font-size:0.9rem; color:#666; }
+    .flash { padding:8px 12px; border-radius:6px; margin-bottom:12px; }
+    .flash.success { background:#ecfdf5; color:#065f46; border:1px solid #bbf7d0; }
+    .flash.error { background:#fff1f2; color:#9f1239; border:1px solid #fecaca; }
+    .muted { color:#8892a6; font-size:0.9rem; }
+    form.inline { display:inline; margin:0; padding:0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Collaborators</h1>
+    <div class="meta">
+      Map ID: <strong>{{ map_id }}</strong> &nbsp;—&nbsp;
+      You: <strong>{{ user_id }}</strong>
+      {% if owner_id and owner_id != user_id %} (owner: {{ owner_id }}){% endif %}
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, msg in messages %}
+          <div class="flash {{ 'success' if category=='success' else 'error' }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="panel" aria-labelledby="add-collab-heading">
+      <h2 id="add-collab-heading" style="margin-top:0; margin-bottom:8px;">Add collaborator</h2>
+      <form method="post" action="{{ url_for('collaborate', map_id=map_id) }}">
+        <label for="collab_uid">Collaborator user id (Firebase UID)</label>
+        <input id="collab_uid" name="collab_uid" placeholder="Enter the Firebase UID of the collaborator" type="text" required />
+        <label for="role" style="margin-top:8px;">Role</label>
+        <select id="role" name="role">
+          <option value="editor" selected>Editor (can edit stops)</option>
+          <option value="viewer">Viewer (read-only)</option>
+        </select>
+
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" type="submit">Add collaborator</button>
+          <a class="btn secondary" href="{{ url_for('open_map', map_id=map_id) }}" style="text-decoration:none;">Back to map</a>
+        </div>
+      </form>
+
+      <div style="margin-top:12px;" class="muted">
+        Tip: enter the collaborator's Firebase UID. Later you can extend this to accept email addresses and resolve them to UIDs.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0;">Current collaborators</h2>
+
+      <div class="collab-list" id="collab-list">
+        {% if collaborators %}
+          {% for c_uid, meta in collaborators.items() %}
+            <div class="collab-item" data-collab-uid="{{ c_uid }}">
+              <div>
+                <div><strong>{{ c_uid }}</strong></div>
+                <div class="small">role: {{ meta.get('role', 'editor') }}{% if meta.get('by') %} — added by {{ meta.get('by') }}{% endif %}</div>
+                {% if meta.get('added_at') %}
+                  <div class="small">added: {{ meta.get('added_at') }}</div>
+                {% endif %}
+              </div>
+
+              <div style="display:flex; gap:8px; align-items:center;">
+                {% if user_id == owner_id and c_uid != owner_id %}
+                  <button type="button" class="btn secondary remove-btn" onclick="removeCollaborator('{{ map_id }}','{{ c_uid }}', this)">Remove</button>
+                {% else %}
+                  <!-- show nothing (or could show a disabled button) -->
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="small">No collaborators yet.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // removeCollaborator(mapId, collabUid, btnElement)
+    async function removeCollaborator(mapId, collabUid, btn) {
+      if (!confirm("Remove collaborator " + collabUid + "? This cannot be undone.")) return;
+
+      btn.disabled = true;
+      const origText = btn.textContent;
+      btn.textContent = 'Removing...';
+
+      try {
+        const form = new FormData();
+        form.append('map_id', mapId);
+        form.append('collab_uid', collabUid);
+
+        const resp = await fetch('{{ url_for("remove_collaborator") }}', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: form
+        });
+
+        if (!resp.ok) {
+          let errText = await resp.text();
+          try {
+            const j = JSON.parse(errText);
+            errText = j.error || errText;
+          } catch (e) { /* ignore */ }
+          alert('Failed to remove collaborator: ' + errText);
+          btn.disabled = false;
+          btn.textContent = origText;
+          return;
+        }
+
+        const j = await resp.json();
+        if (j && j.status === 'ok') {
+          // remove the DOM element for this collaborator
+          const item = btn.closest('.collab-item');
+          if (item) item.remove();
+
+          // transient success flash
+          const flash = document.createElement('div');
+          flash.className = 'flash success';
+          flash.textContent = 'Removed collaborator ' + collabUid;
+          const container = document.querySelector('.container');
+          if (container) container.insertBefore(flash, container.firstChild);
+          setTimeout(() => flash.remove(), 2500);
+        } else {
+          alert('Failed to remove collaborator: ' + (j.error || 'unknown error'));
+          btn.disabled = false;
+          btn.textContent = origText;
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Unexpected error removing collaborator: ' + (err.message || err));
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+    }
+  </script>
+</body>
+</html>

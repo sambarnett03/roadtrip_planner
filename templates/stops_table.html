@@ -16,7 +16,7 @@
     .drag-handle { cursor: grab; user-select: none; padding: 8px 10px; border-radius: 8px; background:#f3f4f6; color: #555; font-size: 1.2rem; line-height: 1; }
     .drag-handle:active { cursor: grabbing; background: #e5e7eb; }
 
-    /* New Delete Button Styles */
+    /* Delete Button Styles */
     .delete-btn {
       background: none; border: none; cursor: pointer; color: #dc3545; 
       font-size: 1.2rem; opacity: 0.6; transition: opacity 0.2s, color 0.2s;
@@ -35,6 +35,59 @@
     .field-value textarea { min-height:48px; resize:vertical; }
     .field-value input[type="checkbox"] { transform:scale(1.3); margin-top: 10px; cursor: pointer; }
     .field-value input[readonly] { background-color: #f9fafb; color: #666; border-color: #eee; cursor: not-allowed; }
+
+    /* --- COLOUR SELECTOR STYLES --- */
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr); 
+      gap: 10px;
+      max-width: 400px;
+    }
+    .color-option {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-size: 0.9rem;
+      color: #333;
+    }
+    .color-option:hover { background-color: #f0f0f0; }
+    .color-option input { margin-right: 8px; cursor: pointer; }
+    .swatch {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      margin-right: 8px;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    /* --- PILL BUTTONS (For Type Selection) --- */
+    .pill-group { display: flex; gap: 10px; }
+    .pill-option {
+      display: inline-flex; align-items: center;
+      border: 1px solid #ddd; padding: 6px 12px; border-radius: 20px;
+      cursor: pointer; background: white; font-size: 0.9rem; color: #444;
+      transition: all 0.2s;
+    }
+    .pill-option:hover { background: #f9f9f9; border-color: #bbb; }
+    
+    /* When the radio inside is checked, style the label */
+    .pill-option:has(input:checked) {
+      background-color: #e3f2fd;
+      border-color: #2196f3;
+      color: #0d47a1;
+      font-weight: 600;
+    }
+    .pill-option input { margin-right: 6px; cursor: pointer; }
+    
+    /* Utility to hide rows */
+    .hidden-row { display: none !important; }
+
+    /* ---------------------------------- */
 
     #status { margin-top: 14px; color:#333; font-weight: 500; height: 1.5em; }
     #button-container { position: fixed; bottom: 5vh; right: 5vw; display: flex; flex-direction: column; align-items: flex-end; gap: 1vh; z-index: 9999; }
@@ -73,8 +126,25 @@
       { key: "name", label: "Place Name", type: "text", readonly: true },
       { key: "nickname", label: "Nickname", type: "text" },
       { key: "desc", label: "Description", type: "text" },
-      { key: "overnight", label: "Overnight Stay", type: "bool" },
-      { key: "inc_drive", label: "Drive through this point, label as parking, or add as POI (y/n/p)", type: "text" }
+      { key: "colour", label: "Colour", type: "text" },
+      { key: "drive", label: "Include in Drive?", type: "bool" }, 
+      { key: "place_type", label: "Type of Stop", type: "text" }
+    ];
+
+    // Colour Options
+    const COLOUR_OPTIONS = [
+        { val: "#00008B", name: "Blue" },
+        { val: "#008B8B", name: "Cyan" },
+        { val: "#DC143C", name: "Red" },
+        { val: "#006400", name: "Green" },
+        { val: "#8B008B", name: "Purple" },
+        { val: "#000000", name: "Black" }
+    ];
+
+    // Place Type Options (UPDATED VALUES)
+    const TYPE_OPTIONS = [
+        { val: "sleep", label: "Overnight Stay" },
+        { val: "poi", label: "Point of Interest" }
     ];
 
     const ownerParam = OWNER_ID || '';
@@ -137,33 +207,31 @@
       }
 
       stops.forEach((stop, idx) => {
+        const docId = stop._doc_id || String(idx);
         const card = document.createElement('div');
         card.className = 'stop-card';
-        card.dataset.docId = stop._doc_id || '';
+        card.dataset.docId = docId;
 
         // --- LEFT COLUMN (ID, Drag, Delete) ---
         const left = document.createElement('div');
         left.className = 'left';
         
-        // 1. ID Number
         const metaDiv = document.createElement('div');
         metaDiv.className = 'meta';
         metaDiv.textContent = `#${idx+1}`;
         left.appendChild(metaDiv);
         
-        // 2. Drag Handle
         const dragDiv = document.createElement('div');
         dragDiv.className = 'drag-handle';
         dragDiv.innerHTML = '☰';
         dragDiv.title = "Drag to reorder";
         left.appendChild(dragDiv);
 
-        // 3. Delete Button (NEW)
         const delBtn = document.createElement('button');
         delBtn.className = 'delete-btn';
-        delBtn.innerHTML = '🗑'; // trash icon
+        delBtn.innerHTML = '🗑'; 
         delBtn.title = "Delete this stop";
-        delBtn.onclick = () => deleteStop(stop._doc_id, card);
+        delBtn.onclick = () => deleteStop(docId, card);
         left.appendChild(delBtn);
 
         card.appendChild(left);
@@ -182,18 +250,58 @@
           
           const row = document.createElement('div');
           row.className = 'field-row';
+          row.dataset.rowKey = key; // Tag the row so we can hide it later
           
           let inputHtml = '';
           const commonAttrs = `data-field="${escapeHtml(key)}" ${isReadonly ? 'readonly' : ''}`;
 
-          if (type === 'bool') {
+          // --- LOGIC FOR DIFFERENT FIELD TYPES ---
+          
+          // 1. COLOUR (Radio Grid)
+          if (key === 'colour') {
+              const groupName = `colour_${docId}`; 
+              let gridHtml = '<div class="grid-container">';
+              COLOUR_OPTIONS.forEach(opt => {
+                  const isChecked = (rawVal === opt.val) ? 'checked' : '';
+                  gridHtml += `
+                    <label class="color-option">
+                      <input type="radio" name="${groupName}" value="${opt.val}" ${isChecked} ${commonAttrs} />
+                      <span class="swatch" style="background: ${opt.val};"></span> ${opt.name}
+                    </label>
+                  `;
+              });
+              gridHtml += '</div>';
+              inputHtml = `<div class="field-value">${gridHtml}</div>`;
+          }
+          // 2. PLACE TYPE (Special Radio Buttons)
+          else if (key === 'place_type') {
+              const groupName = `ptype_${docId}`;
+              let pillHtml = '<div class="pill-group">';
+              
+              TYPE_OPTIONS.forEach(opt => {
+                  const isChecked = (rawVal === opt.val) ? 'checked' : '';
+                  pillHtml += `
+                    <label class="pill-option">
+                        <input type="radio" name="${groupName}" value="${opt.val}" ${isChecked} ${commonAttrs} />
+                        ${opt.label}
+                    </label>
+                  `;
+              });
+              pillHtml += '</div>';
+              inputHtml = `<div class="field-value">${pillHtml}</div>`;
+          }
+          // 3. BOOLEAN (Checkbox - triggers visibility)
+          else if (type === 'bool') {
             const checked = rawVal ? 'checked' : '';
-            inputHtml = `<div class="field-value"><input type="checkbox" ${commonAttrs} ${checked} ${isReadonly ? 'disabled' : ''}></div>`;
+            // Note: We add an extra class 'toggle-trigger' to identify this specific checkbox
+            inputHtml = `<div class="field-value"><input type="checkbox" class="toggle-trigger" ${commonAttrs} ${checked} ${isReadonly ? 'disabled' : ''}></div>`;
           } 
+          // 4. NUMBER
           else if (type === 'number') {
             const valStr = (rawVal === null || rawVal === undefined) ? '' : String(rawVal);
             inputHtml = `<div class="field-value"><input type="number" value="${escapeHtml(valStr)}" ${commonAttrs}></div>`;
           } 
+          // 5. TEXT
           else {
             const valStr = (rawVal === null || rawVal === undefined) ? '' : String(rawVal);
             if (valStr.length > 60 || valStr.includes('\n') || key === 'desc') {
@@ -209,13 +317,32 @@
 
         card.appendChild(fields);
         grid.appendChild(card);
+
+        // Initialize visibility
+        updateVisibility(card);
       });
 
       hookupInlineEditing();
       initReorderSortable();
     }
 
-    // 3. Update Visual IDs (Ensures continuity)
+    // Helper: Logic to show/hide the Type row based on Drive checkbox
+    function updateVisibility(card) {
+        const driveInput = card.querySelector('input[type="checkbox"][data-field="drive"]');
+        const typeRow = card.querySelector('.field-row[data-row-key="place_type"]');
+
+        if (driveInput && typeRow) {
+            if (driveInput.checked) {
+                // If "Include in Drive" is YES -> Hide Type selection
+                typeRow.classList.add('hidden-row');
+            } else {
+                // If "Include in Drive" is NO -> Show Type selection
+                typeRow.classList.remove('hidden-row');
+            }
+        }
+    }
+
+    // 3. Update Visual IDs
     function updateVisualIndices() {
         const cards = Array.from(grid.querySelectorAll('.stop-card'));
         cards.forEach((c, i) => {
@@ -226,62 +353,59 @@
 
     // 4. Delete Function
     async function deleteStop(docId, cardElement) {
-        if (!confirm("Are you sure you want to delete this stop? This cannot be undone.")) return;
-        
+        if (!confirm("Are you sure you want to delete this stop?")) return;
         setStatus('Deleting...');
         cardElement.style.opacity = '0.5';
 
         try {
             const payload = withOwner({ map_id: MAP_ID, doc_id: docId });
-            
             const resp = await fetch('/api/stops/delete', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-
-            if (!resp.ok) {
-                const text = await resp.text();
-                throw new Error(`Server ${resp.status}: ${text}`);
-            }
-
-            // Remove from DOM
+            if (!resp.ok) throw new Error(await resp.text());
             cardElement.remove();
-            
-            // Re-calculate numbers immediately
             updateVisualIndices();
-            
             setStatus('Stop deleted.', false);
             setTimeout(() => setStatus(''), 2000);
         } catch (err) {
-            console.error(err);
             cardElement.style.opacity = '1';
-            setStatus('Failed to delete: ' + err.message, true);
+            setStatus('Delete failed: ' + err.message, true);
         }
     }
 
     // 5. Edit Listeners
     function hookupInlineEditing() {
+      // Inputs & Textareas
       grid.querySelectorAll('input[type="text"], input[type="number"], textarea').forEach(el => {
         if (el.readOnly) return;
-        
         const docId = el.closest('.stop-card').dataset.docId;
-        const field = el.dataset.field;
-        
-        const saveFn = debounce(async (val) => {
-          await patchField(docId, field, val);
-        }, 600); 
-
+        const saveFn = debounce(async (val) => { await patchField(docId, el.dataset.field, val); }, 600); 
         el.addEventListener('input', (e) => saveFn(e.target.value));
       });
 
+      // Checkboxes (Boolean)
       grid.querySelectorAll('input[type="checkbox"]').forEach(chk => {
         if (chk.disabled) return;
         const docId = chk.closest('.stop-card').dataset.docId;
-        const field = chk.dataset.field;
         chk.addEventListener('change', async (e) => {
-          await patchField(docId, field, e.target.checked);
+          if (chk.dataset.field === 'drive') {
+              updateVisibility(chk.closest('.stop-card'));
+          }
+          await patchField(docId, chk.dataset.field, e.target.checked);
+        });
+      });
+
+      // Radio Buttons (Colour & Place Type)
+      grid.querySelectorAll('input[type="radio"]').forEach(radio => {
+        if (radio.disabled) return;
+        const docId = radio.closest('.stop-card').dataset.docId;
+        radio.addEventListener('change', async (e) => {
+             if (e.target.checked) {
+                 await patchField(docId, radio.dataset.field, e.target.value);
+             }
         });
       });
     }
@@ -308,7 +432,6 @@
     function initReorderSortable() {
       if (grid.dataset.sortableInitialized) return;
       grid.dataset.sortableInitialized = '1';
-
       new Sortable(grid, {
         handle: '.drag-handle',
         animation: 150,
@@ -316,10 +439,8 @@
         onStart: e => e.item.style.opacity = '0.5',
         onEnd: async e => {
           e.item.style.opacity = '';
-          updateVisualIndices(); // Update numbers on drop
-          
-          const cards = Array.from(grid.querySelectorAll('.stop-card'));
-          const order = cards.map(c => c.dataset.docId);
+          updateVisualIndices(); 
+          const order = Array.from(grid.querySelectorAll('.stop-card')).map(c => c.dataset.docId);
           await saveOrder(order);
         }
       });

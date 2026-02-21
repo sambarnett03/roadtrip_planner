@@ -23,18 +23,10 @@ def generate_map(map_id, owner_id, rows):
         m = folium.Map(location=(30, 10), zoom_start=3)
 
     else:
-        stops, pois, parking = load_from_fb_format(rows)
-
-        print(stops.places_by_id)
-        print(stops.places)
+        all_stops, driving_stops, other_stops = load_from_fb_format(rows)
         
-    
-        
-        # Add colour to Place instances based on overnight or no
-        add_colours(stops)
-            
         # Create map centered on the first location
-        coords = stops.get_all_coords()
+        coords = all_stops.get_all_coords()
         start = np.mean(coords, axis=0)
         m = folium.Map(location=start, zoom_start=8)
 
@@ -43,19 +35,15 @@ def generate_map(map_id, owner_id, rows):
         gmaps = googlemaps.Client(key=gmaps_key)
 
         # Add pins
-        if parking.places != {}:
-            add_pin(m, parking)
-            
-        if stops.places != {}:
-            add_pin(m, stops)
-         
-        if pois.places != {}:
-            add_pin(m, pois)
-           
+        if driving_stops.places != {}:
+            add_pin(m, driving_stops)
+
+        if other_stops.places != {}:
+            add_pin(m, other_stops)
 
         # Drives
-        gmaps_ids = stops.get_all_gmapsids()
-        plot_drives(m, stops, gmaps_ids, coords)
+        gmaps_ids = driving_stops.get_all_gmapsids()
+        plot_drives(m, driving_stops, gmaps_ids, coords)
 
     tf = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_", suffix=".html", delete=False)
     tf_no_buttons = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_no_buttons_", suffix=".html", delete=False)

@@ -1,27 +1,29 @@
 
 class Place:
-    def __init__(self, id, name, desc, on, inc_drive, nickname, gmaps_id=None, lat=None, lng=None, link_titles='n', links='n'):
+    def __init__(self, id, name, desc, colour, drive, place_type, nickname, gmaps_id=None, lat=None, lng=None, link_titles='n', links='n'):
         self.id = id
-        self.nickname = nickname
         self.name = name
         self.desc = desc
-        self.on = on
-        self.inc_drive = inc_drive
+        self.colour = colour
+        self.drive = drive
+        self.place_type = place_type
+        if nickname == '': name = nickname
+        self.nickname = nickname
+
         self.gmaps_id = gmaps_id
         self.lat = lat 
         self.lng = lng
-        self.colour = None
         self.link_titles = link_titles
         self.links = links
 
     def __repr__(self):
-        return f"Place({self.id}, {self.nickname}, {self.name}, {self.desc}, {self.on}, {self.inc_drive}, {self.gmaps_id}, {self.lat}, {self.lng}, {self.colour})"
+        return f"Place({self.id}, {self.nickname}, {self.name}, {self.desc}, {self.place_type}, {self.drive}, {self.gmaps_id}, {self.lat}, {self.lng}, {self.colour})"
     
     def to_list(self):
-        return [self.id, self.nickname, self.name, self.desc, self.on, self.inc_drive, self.link_titles, self.links]
+        return [self.id, self.nickname, self.name, self.desc, self.place_type, self.drive, self.link_titles, self.links, self.colour]
     
     def to_dict(self):
-        return {'id':self.id, 'nickname':self.nickname, 'name':self.name, 'desc':self.desc, 'on':self.on, 'inc_drive':self.inc_drive, 'gmaps_id':self.gmaps_id, 'lat':self.lat, 'lng':self.lng, 'colour':self.colour, 'link titles':self.link_titles, 'links':self.links}
+        return {'id':self.id, 'nickname':self.nickname, 'name':self.name, 'desc':self.desc, 'place_type':self.place_type, 'drive':self.drive, 'gmaps_id':self.gmaps_id, 'lat':self.lat, 'lng':self.lng, 'colour':self.colour, 'link titles':self.link_titles, 'links':self.links}
     
     def add_geo_data(self, gmaps_id, lat, lng):
         self.gmaps_id = gmaps_id
@@ -45,9 +47,9 @@ class RoadTrip:
         self.places = {}  # key: name, value: Place instance
         self.places_by_id = {}
 
-    def add_place(self, id, name, desc, on, inc_drive, nickname=None, gmaps_id=None, lat=None, lng=None, link_titles='n', links='n'):
+    def add_place(self, id, name, desc, colour, place_type, drive, nickname=None, gmaps_id=None, lat=None, lng=None, link_titles='n', links='n'):
         if nickname == None: nickname = name
-        place = Place(id, name, desc, on, inc_drive, nickname, gmaps_id, lat, lng, link_titles, links)
+        place = Place(id, name, desc, colour, place_type, drive, nickname, gmaps_id, lat, lng, link_titles, links)
         self.places[nickname] = place
         self.places_by_id[id] = place
 

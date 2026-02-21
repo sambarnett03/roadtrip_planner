@@ -126,21 +126,22 @@ def plot_drives(m, stops, gmaps_ids, coords):
     
 
 def load_from_fb_format(rows):
-    stops = RoadTrip()
-    pois = RoadTrip()
-    parking = RoadTrip()
+    drive_stops = RoadTrip()
+    other_stops = RoadTrip()
+    all_stops = RoadTrip()
+
     for row in rows:
-        if row['inc_drive'] == 'y':
-            print('nickname', row['nickname'])
-            stops.add_place(int(row["id"]), row["name"], row["desc"], row['on'], row['inc_drive'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
-        elif row['inc_drive'] == 'p':
-            parking.add_place(int(row["id"]), row["name"], row["desc"], row['on'], row['inc_drive'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
+        all_stops.add_place(int(row["id"]), row["name"], row["desc"], row['colour'], row['drive'], row['place_type'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
+        if row['drive'] == 'y':
+            drive_stops.add_place(int(row["id"]), row["name"], row["desc"], row['colour'], row['drive'], row['place_type'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
         else:
-            pois.add_place(int(row["id"]), row["name"], row["desc"], row['on'], row['inc_drive'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
-            
-    return stops, pois, parking 
+            other_stops.add_place(int(row["id"]), row["name"], row["desc"], row['colour'], row['drive'], row['place_type'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
+    return all_stops, drive_stops, other_stops
     
     
+
+
+
 def load_trip_from_csv(filename):
     trip = RoadTrip()
     with open(filename, 'r', encoding="cp1252") as f:

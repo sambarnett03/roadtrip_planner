@@ -29,7 +29,7 @@ def add_route_segment(map_obj, locations, distance, duration, color="blue", weig
     folium.PolyLine(
         locations=locations,
         color=color,
-        weight=weight,
+        weight=4,
         opacity=opacity,
         popup=folium.Popup(popup_for_drives(distance, duration), max_width=300)
     ).add_to(map_obj)
@@ -58,30 +58,54 @@ def popup_for_drives(distance, duration):
 
 
 def add_pin(m, trip):
-    keys = list(trip.places.keys())
-    symbol = trip.get_place(keys[0]).inc_drive
-    
-    if symbol == 'y':
-        for i, place in enumerate(trip.places.values()):
+
+    for (i, place) in enumerate(trip.places.values()):
+        if place.drive == 'y':
             folium.Marker(
                 location=[place.lat, place.lng],
                 popup=folium.Popup(popup_for_places(place.nickname, place.link_titles, place.links, place.desc), max_width=300),
                 icon=folium.DivIcon(html=numbered_pin_html(i + 1, place.colour), icon_size=(30, 30), icon_anchor=(15, 30))
-        ).add_to(m)
-            
-    else:
-        if symbol == 'n':
-            icon = folium.Icon(icon="info-sign", prefix="glyphicon")
-            
-        else: # symbol=='p'
-            icon = folium.DivIcon(html=numbered_pin_html('p', '#58AADE'), icon_size=(30, 30), icon_anchor=(15, 30))
-            
-        for i, place in enumerate(trip.places.values()):
+            ).add_to(m)
+
+        else:
+            if place.place_type == 'poi':
+                icon = folium.Icon(icon="info-sign", prefix="glyphicon", color=place.colour)
+
+            if place.place_type == 'sleep':
+                icon = folium.Icon(icon="fa-solid fa-bed", prefix="fa", color=place.colour)
+
             folium.Marker(
                 location=[place.lat, place.lng],
                 popup=folium.Popup(popup_for_places(place.nickname, place.link_titles, place.links, place.desc), max_width=300),
                 icon=icon
-        ).add_to(m)
+            ).add_to(m)
+            
+
+
+    # keys = list(trip.places.keys())
+    # symbol = trip.get_place(keys[0]).inc_drive
+    
+    # if symbol == 'y':
+    #     for i, place in enumerate(trip.places.values()):
+    #         folium.Marker(
+    #             location=[place.lat, place.lng],
+    #             popup=folium.Popup(popup_for_places(place.nickname, place.link_titles, place.links, place.desc), max_width=300),
+    #             icon=folium.DivIcon(html=numbered_pin_html(i + 1, place.colour), icon_size=(30, 30), icon_anchor=(15, 30))
+    #     ).add_to(m)
+            
+    # else:
+    #     if symbol == 'n':
+    #         icon = folium.Icon(icon="info-sign", prefix="glyphicon")
+            
+    #     else: # symbol=='p'
+    #         icon = folium.DivIcon(html=numbered_pin_html('p', '#58AADE'), icon_size=(30, 30), icon_anchor=(15, 30))
+            
+    #     for i, place in enumerate(trip.places.values()):
+    #         folium.Marker(
+    #             location=[place.lat, place.lng],
+    #             popup=folium.Popup(popup_for_places(place.nickname, place.link_titles, place.links, place.desc), max_width=300),
+    #             icon=icon
+    #     ).add_to(m)
 
                 
         

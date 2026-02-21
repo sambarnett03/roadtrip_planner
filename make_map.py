@@ -75,14 +75,15 @@ def generate_map(map_id, owner_id, rows):
     }
 
     insert_sidebar(tf_no_buttons.name, map_id, owner_id, firebase_config=fb_config)
+    insert_sidebar(tf.name, map_id, owner_id, firebase_config=fb_config)
 
     buttons = [
         ("Add Marker", f"/add_marker?map_id={map_id}"),
         ("View Locations", "/stops"),
         ("Collaborators", "/collaborate"),
+        ('Download map', '/download_current_map'),
         ("See All Roadtrips", "/roadtrips"),
-        ("Sign out", "/sign_out"),
-        ('Download map', '/download_current_map')
+        ("Sign out", "/sign_out")
     ]
     insert_buttons(tf.name, buttons)
     

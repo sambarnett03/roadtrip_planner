@@ -3,6 +3,7 @@ import os
 import csv
 import sys
 import polyline
+from pathlib import Path
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Utility.classes import *
@@ -10,7 +11,8 @@ from Utility.plotting_functions import *
 
 from dotenv import load_dotenv
 
-load_dotenv()
+env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 gmaps_key = os.environ.get('GOOGLE_MAPS_KEY', '')
 gmaps = googlemaps.Client(key=gmaps_key)
 

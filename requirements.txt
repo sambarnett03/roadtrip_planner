@@ -1,7 +1,8 @@
 firebase_admin==7.1.0
 Flask==3.1.3
 folium==0.20.0
-googlemaps==4.10.0
-numpy==2.4.2
-Werkzeug==3.1.5
-
+googlemaps
+numpy
+Werkzeug
+polyline
+dotenv

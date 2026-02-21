@@ -15,7 +15,7 @@ from Utility.utility_functions import *
 from dotenv import load_dotenv
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, g, flash, send_file, jsonify, Response
+    session, g, flash, send_file, jsonify, Response, abort
 )
 
 # Firebase Admin (Firestore)
@@ -43,7 +43,6 @@ def create_app():
     # Firebase Admin init
     # -------------------------
     def init_firebase():
-        print('function called')
         # 1. Check if already initialized
         try:
             firebase_admin.get_app()
@@ -611,6 +610,13 @@ def create_app():
     # Firestore-based Roadtrips
     # -------------------------
 
+    @app.route('/download_current_map')
+    def download_current_map():
+        path = session.get('last_map_path')
+        if path and os.path.exists(path):
+            return send_file(path, as_attachment=True, download_name="my_roadtrip.html")
+        return "File expired or not found", 404
+
 
     @app.route('/delete_map', methods=['POST'])
     @login_required
@@ -689,21 +695,7 @@ def create_app():
             session['current_map_owner'] = owner_id
 
             # 1. Generate the basic Map HTML
-            tf = generate_map(map_id, rows)
-
-            # 2. Inject Sidebar with correct Owner ID and Map ID
-            # Pass client-side config from env vars if available
-            fb_config = {
-                "apiKey": os.environ.get('FIREBASE_API_KEY'),
-                "authDomain": os.environ.get('FIREBASE_AUTH_DOMAIN'),
-                "projectId": os.environ.get('FIREBASE_PROJECT_ID'),
-                "storageBucket": os.environ.get('FIREBASE_STORAGE_BUCKET'),
-                "messagingSenderId": os.environ.get('FIREBASE_MESSAGING_SENDER_ID'),
-                "appId": os.environ.get('FIREBASE_APP_ID')
-            }
-
-            # This inserts the sidebar code into the temp file
-            insert_sidebar(tf.name, map_id, owner_id, firebase_config=fb_config)
+            tf = generate_map(map_id, owner_id, rows)
 
             try:
                 return send_file(tf.name, mimetype='text/html')
@@ -746,7 +738,7 @@ def create_app():
             session['current_map_owner'] = uid # For owned maps, owner is self
 
             # 1. Generate Map
-            tf = generate_map(map_id, rows)
+            tf = generate_map(map_id, uid, rows)
 
             # 2. Inject Sidebar
             fb_config = {

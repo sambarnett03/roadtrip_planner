@@ -27,8 +27,9 @@ from werkzeug.utils import secure_filename
 from make_map import generate_map
 import tempfile
 
-# Load .env for local development (optional)
-load_dotenv()
+
+env_path = '/home/sbarnett/roadtrip_planner/.env'
+load_dotenv(dotenv_path=env_path)
 
 
 def create_app():
@@ -42,73 +43,33 @@ def create_app():
     # Firebase Admin init
     # -------------------------
     def init_firebase():
-        """
-        Initialize Firebase Admin SDK using one of:
-          - FIREBASE_CREDENTIALS -> path to service-account JSON
-          - FIREBASE_CREDENTIALS_JSON -> raw JSON string
-          - FIREBASE_CREDENTIALS_B64 -> base64 JSON
-          - FALLBACK: GOOGLE_APPLICATION_CREDENTIALS
-        On success sets app.db = firestore.client()
-        """
-        # If already initialized, attach client and return
+        print('function called')
+        # 1. Check if already initialized
         try:
             firebase_admin.get_app()
-            app.logger.info("Firebase Admin already initialized.")
-            try:
-                app.db = fb_firestore.client()
-            except Exception:
-                app.db = None
+            app.db = fb_firestore.client()
             return
         except ValueError:
-            # Not initialized yet
             pass
 
-        # 1) path
-        cred_path = os.environ.get("FIREBASE_CREDENTIALS") or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        if cred_path:
-            if os.path.isfile(cred_path):
-                try:
-                    cred = credentials.Certificate(cred_path)
-                    firebase_admin.initialize_app(cred)
-                    app.db = fb_firestore.client()
-                    app.logger.info("Initialized Firebase Admin from %s", cred_path)
-                    return
-                except Exception as e:
-                    app.logger.error("Failed to initialize Firebase Admin from %s: %s", cred_path, e)
-            else:
-                app.logger.warning("FIREBASE_CREDENTIALS path set but file not found: %s", cred_path)
+        # 2. Get the path from environment
+        cred_path = os.environ.get("FIREBASE_CREDENTIALS")
 
-        # 2) raw JSON
-        cred_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
-        if cred_json:
-            try:
-                info = json.loads(cred_json)
-                cred = credentials.Certificate(info)
-                firebase_admin.initialize_app(cred)
-                app.db = fb_firestore.client()
-                app.logger.info("Initialized Firebase Admin from FIREBASE_CREDENTIALS_JSON")
-                return
-            except Exception as e:
-                app.logger.error("Failed to initialize Firebase Admin from FIREBASE_CREDENTIALS_JSON: %s", e)
+        # 3. If path is missing or wrong, use a hardcoded fallback for PythonAnywhere
+        if not cred_path or not os.path.exists(cred_path):
+            cred_path = '/home/sbarnett/roadtrip_planner/roadmap-planner-87b0a-firebase-adminsdk-fbsvc-59190012ce.json'
 
-        # 3) base64 JSON
-        cred_b64 = os.environ.get("FIREBASE_CREDENTIALS_B64")
-        if cred_b64:
-            try:
-                decoded = base64.b64decode(cred_b64).decode('utf-8')
-                info = json.loads(decoded)
-                cred = credentials.Certificate(info)
-                firebase_admin.initialize_app(cred)
-                app.db = fb_firestore.client()
-                app.logger.info("Initialized Firebase Admin from FIREBASE_CREDENTIALS_B64")
-                return
-            except Exception as e:
-                app.logger.error("Failed to initialize Firebase Admin from FIREBASE_CREDENTIALS_B64: %s", e)
-
-        app.logger.warning("Firebase Admin not initialized. No valid credentials found.")
-        app.db = None
+        if os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+            app.db = fb_firestore.client()
+            print(f"Successfully initialized Firebase with: {cred_path}")
+        else:
+            # This will show up in your Error Log and stop the app from being "half-broken"
+            raise RuntimeError(f"CRITICAL: Service account file not found at {cred_path}")
 
     init_firebase()
+
 
     # -------------------------
     # Helpers
@@ -124,7 +85,7 @@ def create_app():
     @app.before_request
     def load_user():
         g.uid = session.get('uid')
-        
+
 
     def get_next_sequence_number(uid, map_id):
         db = app.db
@@ -146,8 +107,8 @@ def create_app():
         highest_seq = docs[0].to_dict().get("id", 0)
         return highest_seq + 1
 
-        
-        
+
+
 
     # -------------------------
     # Collaboration helpers + routes
@@ -163,10 +124,10 @@ def create_app():
                 raise RuntimeError("Firestore client not configured")
 
             map_ref = db.collection("users").document(owner_uid).collection("maps").document(map_id)
-            
+
             # update nested field for details AND add to array for searchability
             coll_field = f"collaborators.{collaborator_uid}"
-            
+
             map_ref.update({
                 coll_field: {
                     "role": role,
@@ -241,7 +202,7 @@ def create_app():
                                user_id=uid,
                                owner_id=owner_uid,
                                collaborators=collaborators)
-    
+
 
     @app.route('/collaborators/remove', methods=['POST'])
     @login_required
@@ -295,11 +256,11 @@ def create_app():
 
         try:
             # remove nested field collaborators.<collab_uid> AND remove from array
-            map_ref.update({ 
+            map_ref.update({
                 f"collaborators.{collab_uid}": fb_firestore.DELETE_FIELD,
                 "collaborator_uids": fb_firestore.ArrayRemove([collab_uid])
             })
-            
+
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'status': 'ok', 'removed': collab_uid}), 200
             flash(f"Removed collaborator {collab_uid}.", "success")
@@ -333,7 +294,7 @@ def create_app():
             }
             doc_ref.set(data)
             return doc_ref.id
-    
+
 
 
     def append_roadmap_doc(uid, place, map_id):
@@ -342,15 +303,15 @@ def create_app():
         Returns new document id.
         """
         db = app.db
-        if db is None: 
+        if db is None:
             raise RuntimeError("Firestore client not configured")
-        
+
         doc_ref = db.collection("users") \
              .document(uid) \
              .collection("maps") \
              .document(map_id) \
              .collection("stops") \
-             .document(place.name) 
+             .document(place.name)
 
         place.id = get_next_sequence_number(uid, map_id)
         doc_ref.set(place.to_dict())
@@ -367,7 +328,7 @@ def create_app():
         # If the user is already logged in, send them to their roadtrips
         if 'uid' in session:
             return redirect(url_for('roadtrips'))
-            
+
         # Otherwise, immediately redirect to sign up
         return redirect(url_for('sign_up'))
 
@@ -415,7 +376,7 @@ def create_app():
                                firebase_api_key=os.environ.get('FIREBASE_API_KEY', ''),
                                firebase_auth_domain=os.environ.get('FIREBASE_AUTH_DOMAIN', ''),
                                firebase_project_id=os.environ.get('FIREBASE_PROJECT_ID', ''))
-    
+
 
 
 
@@ -518,11 +479,11 @@ def create_app():
         """
         uid = session.get('uid')
         data = request.get_json(silent=True) or {}
-        
+
         map_id = data.get('map_id')
         doc_id = data.get('doc_id')
         owner_id = data.get('owner_id') or uid # Use explicit owner if shared
-        
+
         if not map_id or not doc_id:
             return jsonify({'error': 'Missing map_id or doc_id'}), 400
 
@@ -541,7 +502,7 @@ def create_app():
               .collection("maps").document(map_id)\
               .collection("stops").document(doc_id)\
               .delete()
-              
+
             return jsonify({'status': 'ok', 'deleted': doc_id}), 200
         except Exception as e:
             app.logger.exception("Failed to delete stop %s", doc_id)
@@ -643,8 +604,8 @@ def create_app():
 
 
 
-    
-    
+
+
 
     # -------------------------
     # Firestore-based Roadtrips
@@ -680,11 +641,11 @@ def create_app():
                 return redirect(url_for('roadtrips'))
 
             # 3. Delete the map document
-            # Note: In Firestore, deleting a document does NOT automatically delete 
-            # its subcollections (like 'stops' or 'planning'). They will become 
+            # Note: In Firestore, deleting a document does NOT automatically delete
+            # its subcollections (like 'stops' or 'planning'). They will become
             # orphaned but will no longer appear in your list.
             map_ref.delete()
-            
+
             flash("Roadtrip deleted successfully.", "success")
 
         except Exception as e:
@@ -740,7 +701,7 @@ def create_app():
                 "messagingSenderId": os.environ.get('FIREBASE_MESSAGING_SENDER_ID'),
                 "appId": os.environ.get('FIREBASE_APP_ID')
             }
-            
+
             # This inserts the sidebar code into the temp file
             insert_sidebar(tf.name, map_id, owner_id, firebase_config=fb_config)
 
@@ -779,14 +740,14 @@ def create_app():
                     .stream()
 
             rows = [doc.to_dict() for doc in stops]
-            
+
             # Keep session small: remember which map is active
             session['current_map_id'] = map_id
             session['current_map_owner'] = uid # For owned maps, owner is self
 
             # 1. Generate Map
             tf = generate_map(map_id, rows)
-            
+
             # 2. Inject Sidebar
             fb_config = {
                 "apiKey": os.environ.get('FIREBASE_API_KEY'),
@@ -854,7 +815,7 @@ def create_app():
             # Query maps where the 'collaborator_uids' array contains the current user's uid
             query = db.collection_group("maps").where("collaborator_uids", "array_contains", uid)
             shared_docs = list(query.stream())
-            
+
             for d in shared_docs:
                 # skip maps owned by the current user (avoid duplicating owned maps)
                 owner_ref = d.reference.parent.parent
@@ -867,7 +828,7 @@ def create_app():
                 created = data.get('created_at')
                 created_str = created.isoformat() if hasattr(created, 'isoformat') else str(created)
                 filename = data.get('filename')
-                
+
                 shared_roadmaps.append({
                     "id": d.id,
                     "name": name,
@@ -926,10 +887,10 @@ def create_app():
         except Exception as e:
             app.logger.exception("Failed to create roadmap doc: %s", e)
             return "Failed to create roadmap", 500
-        
-        
-        
-    
+
+
+
+
     @app.route('/append_to_roadtrip', methods=['POST'])
     @login_required
     def append_to_roadtrip():
@@ -949,7 +910,7 @@ def create_app():
         place_object = Place(place_id, name, desc, overnight, place_type, nickname, gmaps_id, lat, long)
 
         append_roadmap_doc(session['uid'], place_object, map_id)
-        
+
         return redirect(url_for('open_map', map_id=map_id))
 
 
@@ -964,7 +925,7 @@ def create_app():
             "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN"),
             "projectId": os.environ.get("FIREBASE_PROJECT_ID"),
         }
-        
+
 
         return render_template("stops_table.html",
                        map_id=map_id,
@@ -1007,11 +968,11 @@ def create_app():
         except Exception:
             info['firebase'] = False
         return jsonify(info), 200
-    
+
 
     return app
 
-    
+
 
 if __name__ == '__main__':
     application = create_app()

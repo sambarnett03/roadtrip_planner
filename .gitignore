@@ -9,3 +9,4 @@ env/
 instance/
 roadmap-planner-*-firebase-adminsdk-*.json
 *.zip
+*.json

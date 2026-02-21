@@ -297,10 +297,7 @@ def create_app():
 
 
     def append_roadmap_doc(uid, place, map_id):
-        """
-        Create a document under users/{uid}/maps with CSV stored as text.
-        Returns new document id.
-        """
+ 
         db = app.db
         if db is None:
             raise RuntimeError("Firestore client not configured")
@@ -888,18 +885,19 @@ def create_app():
     def append_to_roadtrip():
         name = (request.form.get('name') or "").strip()
         desc = (request.form.get('desc') or "").strip()
-        overnight = (request.form.get('overnight') or "").strip()
+        colour = (request.form.get('colour') or "").strip()
+        drive = (request.form.get('drive') or "").strip()
         place_type = (request.form.get('type') or "").strip()
         nickname = (request.form.get('nickname') or "").strip()
         place_id = None
 
-        if nickname == '': nickname = None
+        if nickname == '': nickname = name
 
         map_id = request.form.get('map_id') or session.get('current_map_id')
 
         gmaps_id, lat, long = get_place_id(name)
 
-        place_object = Place(place_id, name, desc, overnight, place_type, nickname, gmaps_id, lat, long)
+        place_object = Place(place_id, name, desc, colour, drive, place_type, nickname, gmaps_id, lat, long)
 
         append_roadmap_doc(session['uid'], place_object, map_id)
 

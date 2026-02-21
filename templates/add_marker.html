@@ -1,9 +1,57 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Add a Marker</title>
+  <style>
+    .radio-group {
+      font-family: sans-serif;
+      max-width: 400px;
+    }
+
+    .title {
+      font-weight: bold;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    /* The Grid Container */
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr); /* Three equal columns */
+      gap: 10px;
+    }
+
+    /* Styling the individual labels to look like buttons */
+    .color-option {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .color-option:hover {
+      background-color: #f0f0f0;
+    }
+
+    /* Hide the actual radio circle */
+    .color-option input {
+      margin-right: 8px;
+    }
+
+    /* The Color Swatch */
+    .swatch {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      margin-right: 8px;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+  </style>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -100,19 +148,56 @@
       <label for="desc">Description</label>
       <textarea id="desc" name="desc" rows="3" required></textarea>
 
-      <div class="checkbox-group">
-        <label>
-          <input type="checkbox" name="overnight" id="overnight" value="y">
-          Overnight stay
-        </label>
+
+      <div class="radio-group">
+        <span class="title">Colour of pin</span>
+        <div class="grid-container">
+          
+          <label class="color-option">
+            <input type="radio" name="colour" value="blue" />
+            <span class="swatch" style="background: #00008B;"></span> Blue
+          </label>
+
+          <label class="color-option">
+            <input type="radio" name="colour" value="lightblue" />
+            <span class="swatch" style="background: #008B8B;"></span> Cyan
+          </label>
+
+          <label class="color-option">
+            <input type="radio" name="colour" value="red" />
+            <span class="swatch" style="background: #DC143C;"></span> Red
+          </label>
+
+          <label class="color-option">
+            <input type="radio" name="colour" value="green" />
+            <span class="swatch" style="background: #006400;"></span> Green
+          </label>
+
+          <label class="color-option">
+            <input type="radio" name="colour" value="purple" />
+            <span class="swatch" style="background: #8B008B;"></span> Purple
+          </label>
+
+          <label class="color-option">
+            <input type="radio" name="colour" value="black" />
+            <span class="swatch" style="background: #000000;"></span> Black
+          </label>
+
+        </div>
       </div>
 
       <div class="radio-group">
-        <label>Type of destination</label><br>
-        <label><input type="radio" name="type" value="y" required>Drive to this place</label>
-        <label><input type="radio" name="type" value="n"> Note as POI but don't drive to it</label>
-        <label><input type="radio" name="type" value="p"> Possible parking</label>
+        <label>Include in drive</label>
+        <label><input type="radio" name="drive" value="y" required>Yes</label>
+        <label><input type="radio" name="drive" value="n">No</label>
       </div>
+
+      <div id="type-group" class="radio-group" style="display: none;">
+        <label>Type of location</label>
+        <label><input type="radio" name="type" value="poi">Point of Interest (POI)</label>
+        <label><input type="radio" name="type" value="sleep">Overnight Stay</label>
+      </div>
+
 
       <label for="nickname">Nickname (optional)</label>
       <input type="text" id="nickname" name="nickname">
@@ -123,14 +208,61 @@
     </form>
 
     <div class="footer-link">
-      <p><a id="mapLink" href="/map">View Map</a></p>
+      <p><a id="mapLink" href= "{{ url_for('open_map', map_id=request.args.get('map_id')) }}" >View Map</a></p>
     </div>
   </div>
 
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const driveRadios = document.getElementsByName('drive');
+      const typeGroup = document.getElementById('type-group');
+      const typeRadios = document.getElementsByName('type');
 
+      function toggleTypeVisibility() {
+        let isDriveYes = false;
+        let isDriveNo = false;
+
+        // Check which drive option is selected
+        for (const radio of driveRadios) {
+          if (radio.checked) {
+            if (radio.value === 'y') isDriveYes = true;
+            if (radio.value === 'n') isDriveNo = true;
+          }
+        }
+
+        if (isDriveYes) {
+          // Hide type selection
+          typeGroup.style.display = 'none';
+          
+          // Default to POI
+          for (const radio of typeRadios) {
+            if (radio.value === 'poi') radio.checked = true;
+            radio.required = false; // Not required when hidden/auto-filled
+          }
+        } 
+        else if (isDriveNo) {
+          // Show type selection
+          typeGroup.style.display = 'block';
+          
+          // Make it required so user must confirm choice
+          for (const radio of typeRadios) {
+            radio.required = true;
+          }
+        } 
+        else {
+          // Nothing selected yet (initial state)
+          typeGroup.style.display = 'none';
+        }
+      }
+
+      // Attach event listeners
+      for (const radio of driveRadios) {
+        radio.addEventListener('change', toggleTypeVisibility);
+      }
+
+      // Run on load in case of browser auto-fill or back button navigation
+      toggleTypeVisibility();
+    });
+  </script>
 </body>
-
-
-
-
 </html>

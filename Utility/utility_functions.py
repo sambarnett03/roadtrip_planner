@@ -131,11 +131,11 @@ def load_from_fb_format(rows):
     all_stops = RoadTrip()
 
     for row in rows:
-        all_stops.add_place(int(row["id"]), row["name"], row["desc"], row['colour'], row['drive'], row['place_type'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
+        all_stops.add_place(int(row["id"]), row["name"], row["desc"], row['colour'], row['drive'], row['place_type'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link_titles'], row['links'])
         if row['drive'] == 'y':
-            drive_stops.add_place(int(row["id"]), row["name"], row["desc"], row['colour'], row['drive'], row['place_type'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
+            drive_stops.add_place(int(row["id"]), row["name"], row["desc"], row['colour'], row['drive'], row['place_type'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link_titles'], row['links'])
         else:
-            other_stops.add_place(int(row["id"]), row["name"], row["desc"], row['colour'], row['drive'], row['place_type'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link titles'], row['links'])
+            other_stops.add_place(int(row["id"]), row["name"], row["desc"], row['colour'], row['drive'], row['place_type'], row['nickname'], row['gmaps_id'], row['lat'], row['lng'], row['link_titles'], row['links'])
     return all_stops, drive_stops, other_stops
     
     

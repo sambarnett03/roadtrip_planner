@@ -166,12 +166,16 @@ def create_app():
             user = fb_auth.get_user_by_email(email)
             target_uid = user.uid
 
+            print('triggered', target_uid)
+
             # 2. Add this UID to your Firestore document using existing helper
             add_collaborator_to_map(uid, map_id, target_uid)
 
             flash(f"Successfully shared with {email}!", "success")
         except fb_auth.UserNotFoundError:
+            print('errored')
             flash(f"No user found with email {email}. Ask them to sign up first!", "error")
+            return redirect(url_for('collaborate', map_id=map_id))
         except Exception as e:
             app.logger.error(f"Sharing failed: {e}")
             flash("An error occurred while sharing.", "error")

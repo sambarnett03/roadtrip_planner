@@ -51,6 +51,17 @@
 
     </div>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {# Get the very last message from the list #}
+        {% set category, message = messages[-1] %}
+        
+        <div class="flash {{ category }}">
+          {{ message }}
+        </div>
+      {% endif %}
+    {% endwith %}
+
     <div class="panel">
       <h2 style="margin-top:0;">Current collaborators</h2>
       <p class="small" style="margin-bottom:12px;">Note: Collaborators are listed by their internal User ID.</p>

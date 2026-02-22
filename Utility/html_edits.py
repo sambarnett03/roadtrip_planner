@@ -19,10 +19,10 @@ def insert_buttons(html_path, buttons):
       #button-container {{
         position: absolute;
         bottom: 5vh;
-        right: 5vw;
+        left: 3vw;
         display: flex;
         flex-direction: column;
-        align-items: flex-end;
+        align-items: flex-start;
         gap: 1vh;
         z-index: 9999;
       }}
@@ -85,18 +85,18 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
     sidebar_code = f"""
     <style>
       #mySidebar {{
-        height: 100%;
-        width: 0;
-        position: fixed;
-        z-index: 1000;
-        top: 0;
-        right: 0;
-        left: auto;
-        background-color: white;
-        overflow-x: hidden;
-        transition: 0.3s;
-        padding-top: 60px;
-        box-shadow: -2px 0 5px rgba(0,0,0,0.5);
+          height: 100%;
+          width: 0;
+          position: fixed;
+          z-index: 1000;
+          top: 0;
+          right: 0;
+          left: auto;
+          background-color: white;
+          overflow-x: hidden;
+          transition: 0.3s;
+          padding-top: 60px;
+          box-shadow: -2px 0 5px rgba(0,0,0,0.5);
       }}
 
       #mySidebar [contenteditable] {{

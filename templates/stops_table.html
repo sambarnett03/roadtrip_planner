@@ -2,136 +2,159 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Stops — Editable</title>
+  <title>Stops</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; padding: 20px; background: #fafafa; }
-    .container { max-width: 1100px; margin: 0 auto; padding-bottom: 80px; }
-    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
-    .stop-card { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); display:flex; gap:12px; align-items:flex-start; position: relative; }
-    
-    .left { width: 72px; text-align:center; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 12px; }
-    .meta { font-size: 0.9rem; color: #888; font-weight: bold; }
-    
-    .drag-handle { cursor: grab; user-select: none; padding: 8px 10px; border-radius: 8px; background:#f3f4f6; color: #555; font-size: 1.2rem; line-height: 1; }
-    .drag-handle:active { cursor: grabbing; background: #e5e7eb; }
+    /* --- RESET & BASE --- */
+    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; padding: 40px 20px; background: #f4f6f8; color: #333; }
+    .container { max-width: 1000px; margin: 0 auto; padding-bottom: 80px; }
+    h1 { margin-bottom: 5px; color: #111; }
+    h2 { font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em; color: #666; margin: 30px 0 15px 0; border-bottom: 2px solid #e1e4e8; padding-bottom: 10px; }
+    p.subtitle { color: #666; margin-top:0; margin-bottom: 30px; }
 
-    /* Delete Button Styles */
-    .delete-btn {
-      background: none; border: none; cursor: pointer; color: #dc3545; 
-      font-size: 1.2rem; opacity: 0.6; transition: opacity 0.2s, color 0.2s;
-      padding: 4px;
+    /* --- LAYOUTS --- */
+    .section-grid { display: flex; flex-direction: column; gap: 10px; }
+
+    /* --- COMPACT CARD (ROUTE) --- */
+    .route-card {
+      background: white; border: 1px solid #ddd; border-left: 4px solid #2196f3;
+      border-radius: 6px; padding: 8px 15px;
+      display: flex; align-items: center; gap: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transition: transform 0.1s, box-shadow 0.1s;
     }
-    .delete-btn:hover { opacity: 1; color: #b02a37; }
+    .route-card:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.08); transform: translateY(-1px); }
+    
+    .drag-handle { cursor: grab; color: #999; font-size: 1.2rem; padding: 4px 8px; border-radius: 4px; }
+    .drag-handle:hover { background: #f0f0f0; color: #333; }
+    .drag-handle:active { cursor: grabbing; }
 
-    .fields { flex: 1; display:flex; flex-direction:column; gap:8px; }
-    .field-row { display:flex; gap:8px; align-items:flex-start; }
-    .field-key { width:160px; font-weight:600; color:#333; margin-top: 8px; font-size: 0.95rem; }
-    .field-value { flex: 1; }
+    .route-info { flex: 1; display: flex; gap: 15px; align-items: center; }
+    .route-info input { 
+      border: 1px solid transparent; background: transparent; 
+      font-size: 1rem; color: #333; padding: 4px 8px; border-radius: 4px; width: 100%;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .route-info input:hover, .route-info input:focus { background: #fff; border-color: #ddd; outline: none; }
+    .route-info input.nickname { color: #666; font-style: italic; }
+
+    .remove-drive-btn {
+      background: #eef2f6; color: #555; border: none; width: 32px; height: 32px;
+      border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; transition: all 0.2s;
+    }
+    .remove-drive-btn:hover { background: #ffebee; color: #c62828; }
+
+    /* --- FULL CARD (POOL) --- */
+    .stop-card { 
+      background: white; border-radius: 10px; padding: 20px; 
+      border: 1px solid #eaeaea;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.04); 
+      display: flex; gap: 20px; align-items: flex-start; 
+    }
+    
+    .fields { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+    .field-row { display: grid; grid-template-columns: 140px 1fr; gap: 15px; align-items: start; }
+    .field-key { font-weight: 600; color: #444; font-size: 0.9rem; margin-top: 10px; }
     
     .field-value input[type="text"], 
     .field-value input[type="number"], 
-    .field-value textarea { width:100%; padding:8px 10px; border-radius:6px; border:1px solid #e6e6e6; font-family: inherit; font-size: 0.95rem; box-sizing: border-box; }
-    .field-value textarea { min-height:48px; resize:vertical; }
-    .field-value input[type="checkbox"] { transform:scale(1.3); margin-top: 10px; cursor: pointer; }
-    .field-value input[readonly] { background-color: #f9fafb; color: #666; border-color: #eee; cursor: not-allowed; }
+    .field-value textarea { 
+      width: 100%; padding: 10px 12px; border-radius: 6px; 
+      border: 1px solid #ddd; background: #fcfcfc;
+      font-family: inherit; font-size: 0.95rem; box-sizing: border-box; 
+      transition: border-color 0.2s;
+    }
+    .field-value input:focus, .field-value textarea:focus { border-color: #2196f3; background: #fff; outline: none; }
+    .field-value textarea { min-height: 60px; resize: vertical; }
+    .field-value input[readonly] { background-color: #f4f5f7; color: #777; border-color: #ebebeb; cursor: default; }
 
-    /* --- COLOUR SELECTOR STYLES --- */
-    .grid-container {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr); 
-      gap: 10px;
-      max-width: 400px;
+    /* --- LINKS SECTION STYLES --- */
+    .link-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .link-row input { flex: 1; min-width: 0; font-size: 0.9rem; padding: 8px; }
+    .btn-remove-link { 
+        background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; 
+        border-radius: 4px; cursor: pointer; padding: 0 8px; height: 36px;
     }
-    .color-option {
-      display: flex;
-      align-items: center;
-      padding: 6px 8px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.2s;
-      font-size: 0.9rem;
-      color: #333;
+    .btn-remove-link:hover { background: #ef5350; color: white; }
+    
+    .btn-add-link {
+        background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9;
+        border-radius: 4px; cursor: pointer; padding: 6px 12px; font-size: 0.85rem; font-weight: 600;
+        display: inline-block; margin-top: 4px;
     }
-    .color-option:hover { background-color: #f0f0f0; }
-    .color-option input { margin-right: 8px; cursor: pointer; }
-    .swatch {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      margin-right: 8px;
-      border: 1px solid rgba(0,0,0,0.1);
-    }
+    .btn-add-link:hover { background: #bbdefb; }
 
-    /* --- PILL BUTTONS (For Type Selection) --- */
-    .pill-group { display: flex; gap: 10px; }
-    .pill-option {
-      display: inline-flex; align-items: center;
-      border: 1px solid #ddd; padding: 6px 12px; border-radius: 20px;
-      cursor: pointer; background: white; font-size: 0.9rem; color: #444;
+    /* --- DELETE BUTTON --- */
+    .delete-container { display: flex; justify-content: flex-end; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
+    .delete-btn-styled {
+      background-color: #fff; border: 1px solid #ffcdd2; color: #c62828;
+      padding: 8px 16px; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
       transition: all 0.2s;
     }
-    .pill-option:hover { background: #f9f9f9; border-color: #bbb; }
+    .delete-btn-styled:hover { background-color: #ffebee; border-color: #e57373; }
+
+    /* --- INPUT CONTROLS --- */
+    .toggle-trigger { width: 20px; height: 20px; cursor: pointer; margin-top: 8px; }
+
+    /* Colour Selector */
+    .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+    .color-option { display: flex; align-items: center; padding: 6px 10px; border: 1px solid #eee; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+    .color-option:hover { background-color: #f9f9f9; border-color: #ccc; }
+    .swatch { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid rgba(0,0,0,0.1); }
     
-    /* When the radio inside is checked, style the label */
-    .pill-option:has(input:checked) {
-      background-color: #e3f2fd;
-      border-color: #2196f3;
-      color: #0d47a1;
-      font-weight: 600;
-    }
-    .pill-option input { margin-right: 6px; cursor: pointer; }
-    
-    /* Utility to hide rows */
+    /* Pill Buttons */
+    .pill-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill-option { border: 1px solid #ddd; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 0.9rem; color: #555; background: #fff; transition: all 0.2s; }
+    .pill-option:hover { border-color: #bbb; background: #fafafa; }
+    .pill-option:has(input:checked) { background-color: #e3f2fd; border-color: #2196f3; color: #1565c0; font-weight: 600; }
+    .pill-option input { display: none; } /* Hide actual radio, style label */
+
+    /* Utility */
     .hidden-row { display: none !important; }
+    .dragging-ghost { opacity: 0.4; background: #e3f2fd; border: 1px dashed #2196f3; }
 
-    /* ---------------------------------- */
+    /* --- FLOATING UI --- */
+    #status { position: fixed; bottom: 20px; left: 20px; background: #333; color: white; padding: 10px 20px; border-radius: 30px; font-size: 0.9rem; opacity: 0; transition: opacity 0.3s; z-index: 1000; pointer-events: none; }
+    #status.visible { opacity: 1; }
+    #status.error { background: #c62828; }
 
-    #status { margin-top: 14px; color:#333; font-weight: 500; height: 1.5em; }
-    #button-container { position: fixed; bottom: 5vh; right: 5vw; display: flex; flex-direction: column; align-items: flex-end; gap: 1vh; z-index: 9999; }
-    .action-button { background-color: white; padding: 10px 15px; border-radius: 8px; font-weight: bold; color: #007BFF; text-decoration: none; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); transition: background-color 0.2s ease; }
-    .action-button:hover { background-color: #f0f0f0; }
+    #button-container { position: fixed; bottom: 30px; right: 30px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; z-index: 999; }
+    .action-button { background-color: #2196f3; padding: 12px 20px; border-radius: 30px; font-weight: 600; color: white; text-decoration: none; box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3); transition: transform 0.2s; }
+    .action-button:hover { transform: translateY(-2px); background-color: #1e88e5; }
   </style>
-
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 </head>
 <body>
+
   <div class="container">
     <h1>Stops — Editable</h1>
-    <p style="color:#666; margin-bottom: 20px;">Edit details below. Drag ☰ to reorder. Use 🗑 to delete.</p>
-    
-    <div id="status"></div>
+    <p class="subtitle">Manage your road trip details.</p>
 
-    <div id="stops-grid" class="grid" aria-live="polite">
-        <div style="color:#888; font-style:italic;">Loading stops...</div>
+    <h2>Current Route (Orderable)</h2>
+    <div id="route-list" class="section-grid">
+      <div style="color:#999; font-style:italic; padding:10px;">Loading route...</div>
     </div>
+
+    <h2>More Stops</h2>
+    <div id="pool-list" class="section-grid">
+       </div>
   </div>
+
+  <div id="status"></div>
 
   <div id="button-container">
     {% if owner_id %}
-      <a href="{{ url_for('open_map_shared', owner_id=owner_id, map_id=map_id) }}" class="action-button">← Back to Map</a>
+      <a href="{{ url_for('open_map_shared', owner_id=owner_id, map_id=map_id) }}" class="action-button">Done / Back to Map</a>
     {% else %}
-      <a href="{{ url_for('open_map', map_id=map_id) }}" class="action-button">← Back to Map</a>
+      <a href="{{ url_for('open_map', map_id=map_id) }}" class="action-button">Done / Back to Map</a>
     {% endif %}
   </div>
 
   <script>
-    // Server-injected variables
     const MAP_ID = {{ map_id | tojson }};
     const OWNER_ID = {{ owner_id | tojson }};
-
-    let VISIBLE_KEYS = [
-      { key: "name", label: "Place Name", type: "text", readonly: true },
-      { key: "nickname", label: "Nickname", type: "text" },
-      { key: "desc", label: "Description", type: "text" },
-      { key: "colour", label: "Colour", type: "text" },
-      { key: "drive", label: "Include in Drive?", type: "bool" }, 
-      { key: "place_type", label: "Type of Stop", type: "text" }
-    ];
-
-    // Colour Options
     const COLOUR_OPTIONS = [
         { val: "blue",      hex: "#00008B", name: "Blue" },
         { val: "lightblue", hex: "#008B8B", name: "Cyan" },
@@ -140,330 +163,345 @@
         { val: "purple",    hex: "#8B008B", name: "Purple" },
         { val: "black",     hex: "#000000", name: "Black" }
     ];
-
-    // Place Type Options (UPDATED VALUES)
     const TYPE_OPTIONS = [
         { val: "sleep", label: "Overnight Stay" },
         { val: "poi", label: "Point of Interest" }
     ];
 
     const ownerParam = OWNER_ID || '';
-    function stopsUrl(mapId) {
-      return '/api/stops?map_id=' + encodeURIComponent(mapId) + (ownerParam ? ('&owner_id=' + encodeURIComponent(ownerParam)) : '');
-    }
     function withOwner(obj) {
       const copy = Object.assign({}, obj || {});
       if (ownerParam) copy.owner_id = ownerParam;
       return copy;
     }
+    
+    // API Helpers
+    function debounce(fn, wait=500) {
+      let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+    }
     function escapeHtml(s) {
       if (s === undefined || s === null) return '';
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
-    function debounce(fn, wait=500) {
-      let t;
-      return (...args) => {
-        clearTimeout(t);
-        t = setTimeout(() => fn(...args), wait);
-      };
+    
+    // --- DATABASE HELPER ---
+    function isDbTrue(val) {
+      if (typeof val === 'string') {
+        const lower = val.toLowerCase();
+        return lower === 'y' || lower === 'yes' || lower === 'true';
+      }
+      return !!val; 
     }
 
-    // UI Refs
-    const grid = document.getElementById('stops-grid');
     const statusEl = document.getElementById('status');
-    
     function setStatus(msg, isError=false) {
       statusEl.textContent = msg;
-      statusEl.style.color = isError ? '#d32f2f' : '#2e7d32';
-      if (!msg) statusEl.innerHTML = '&nbsp;';
+      statusEl.classList.toggle('error', isError);
+      statusEl.classList.add('visible');
+      if(!msg) statusEl.classList.remove('visible');
+      else setTimeout(() => statusEl.classList.remove('visible'), 3000);
     }
 
-    // 1. Load Data
+    // --- MAIN LOGIC ---
+
     async function loadStops() {
-      setStatus('Loading...');
       try {
-        const resp = await fetch(stopsUrl(MAP_ID), { credentials: 'same-origin' });
-        if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+        const url = '/api/stops?map_id=' + encodeURIComponent(MAP_ID) + (ownerParam ? ('&owner_id=' + encodeURIComponent(ownerParam)) : '');
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Server ${resp.status}`);
         const data = await resp.json();
-        
-        if (data.map_meta && Array.isArray(data.map_meta.visible_fields) && data.map_meta.visible_fields.length) {
-          VISIBLE_KEYS = data.map_meta.visible_fields;
-        }
-        
         renderStops(data.stops || []);
-        setStatus('');
       } catch (err) {
-        console.error(err);
-        setStatus('Error loading stops: ' + err.message, true);
+        setStatus('Error: ' + err.message, true);
       }
     }
 
-    // 2. Render Grid
     function renderStops(stops) {
-      grid.innerHTML = '';
-      if (stops.length === 0) {
-        grid.innerHTML = '<div style="padding:20px; color:#666;">No stops found on this map.</div>';
-        return;
+      const routeContainer = document.getElementById('route-list');
+      const poolContainer = document.getElementById('pool-list');
+      
+      routeContainer.innerHTML = '';
+      poolContainer.innerHTML = '';
+
+      // Strict filtering using helper
+      const driveStops = stops.filter(s => isDbTrue(s.drive));
+      // User requested all stops underneath, even if in drive
+      const poolStops = stops; 
+
+      // 1. Render Route List (Compact)
+      if (driveStops.length === 0) routeContainer.innerHTML = '<div style="padding:15px; color:#999; border:1px dashed #ccc; border-radius:6px;">No stops in driving route. Check "Include in Drive" below.</div>';
+      
+      driveStops.forEach((stop) => {
+        const el = createRouteCard(stop);
+        routeContainer.appendChild(el);
+      });
+
+      // 2. Render Pool List (Full)
+      poolStops.forEach((stop) => {
+        const el = createPoolCard(stop);
+        poolContainer.appendChild(el);
+      });
+
+      initSortable(routeContainer);
+    }
+
+    // --- COMPACT CARD GENERATOR (Route) ---
+    function createRouteCard(stop) {
+      const div = document.createElement('div');
+      div.className = 'route-card';
+      div.dataset.docId = stop._doc_id;
+
+      div.innerHTML = `
+        <div class="drag-handle">☰</div>
+        <div class="route-info">
+          <input type="text" value="${escapeHtml(stop.name)}" readonly style="font-weight:600;" title="Edit name in details view">
+          <input type="text" class="nickname" data-field="nickname" value="${escapeHtml(stop.nickname || '')}" placeholder="Add nickname...">
+        </div>
+        <button class="remove-drive-btn" title="Remove from route">−</button>
+      `;
+
+      // Event: Edit Nickname
+      const nickInput = div.querySelector('.nickname');
+      nickInput.addEventListener('input', debounce(e => patchField(stop._doc_id, 'nickname', e.target.value), 600));
+
+      // Event: Remove from drive
+      div.querySelector('.remove-drive-btn').addEventListener('click', () => {
+        div.style.opacity = '0.5';
+        patchField(stop._doc_id, 'drive', 'n').then(() => loadStops());
+      });
+
+      return div;
+    }
+
+    // --- FULL CARD GENERATOR (Pool) ---
+    function createPoolCard(stop) {
+      const card = document.createElement('div');
+      card.className = 'stop-card';
+      card.dataset.docId = stop._doc_id;
+
+      // Determine boolean state for Checkbox
+      const isDrive = isDbTrue(stop.drive); 
+
+      // Normalize Link Data (ensure arrays)
+      let linksArray = Array.isArray(stop.links) ? stop.links : (stop.links ? [stop.links] : []);
+      let titlesArray = Array.isArray(stop.link_titles) ? stop.link_titles : (stop.link_titles ? [stop.link_titles] : []);
+      
+      // Ensure equal length for initial render
+      const maxLen = Math.max(linksArray.length, titlesArray.length);
+      while(linksArray.length < maxLen) linksArray.push("");
+      while(titlesArray.length < maxLen) titlesArray.push("");
+
+      // Fields configuration (Note: removed simple 'links'/'link_titles' text inputs)
+      const fields = [
+        { key: "name", label: "Place Name", type: "text", readonly: true },
+        { key: "nickname", label: "Nickname", type: "text" },
+        { key: "desc", label: "Description", type: "textarea" },
+        { key: "drive", label: "Include in Drive?", type: "bool" },
+        { key: "place_type", label: "Type", type: "pill" }, 
+        { key: "colour", label: "Colour", type: "color" },
+      ];
+
+      let fieldsHtml = '';
+      fields.forEach(f => {
+        let val = stop[f.key];
+        const commonAttrs = `data-field="${f.key}"`;
+        let inputHtml = '';
+        let rowClass = 'field-row';
+        
+        if (f.key === 'place_type') rowClass += ' type-row';
+
+        if (f.type === 'text') {
+          inputHtml = `<input type="text" value="${escapeHtml(val)}" ${commonAttrs} ${f.readonly ? 'readonly' : ''}>`;
+        } else if (f.type === 'textarea') {
+          inputHtml = `<textarea ${commonAttrs}>${escapeHtml(val)}</textarea>`;
+        } else if (f.type === 'bool') {
+          inputHtml = `<input type="checkbox" class="toggle-trigger" ${commonAttrs} ${isDrive ? 'checked' : ''}>`;
+        } else if (f.type === 'color') {
+          inputHtml = `<div class="grid-container">` + 
+            COLOUR_OPTIONS.map(c => `
+              <label class="color-option">
+                <input type="radio" name="clr_${stop._doc_id}" value="${c.val}" ${val===c.val?'checked':''} ${commonAttrs} style="margin-right:5px;">
+                <span class="swatch" style="background:${c.val}"></span>${c.name}
+              </label>`).join('') + `</div>`;
+        } else if (f.type === 'pill') {
+          if (!val) val = 'poi'; 
+          inputHtml = `<div class="pill-group">` + 
+            TYPE_OPTIONS.map(t => `
+              <label class="pill-option">
+                <input type="radio" name="typ_${stop._doc_id}" value="${t.val}" ${val===t.val?'checked':''} ${commonAttrs}>
+                ${t.label}
+              </label>`).join('') + `</div>`;
+        }
+
+        fieldsHtml += `
+          <div class="${rowClass}">
+            <div class="field-key">${f.label}</div>
+            <div class="field-value">${inputHtml}</div>
+          </div>
+        `;
+      });
+
+      // --- DYNAMIC LINKS SECTION ---
+      // We manually construct the links area here
+      fieldsHtml += `
+        <div class="field-row">
+            <div class="field-key">Links & Titles</div>
+            <div class="field-value link-container">
+                <div class="links-list"></div>
+                <button class="btn-add-link">+ Add Link</button>
+            </div>
+        </div>
+      `;
+
+      // Add Delete Button at bottom
+      fieldsHtml += `
+        <div class="delete-container">
+          <button class="delete-btn-styled">Delete Stop</button>
+        </div>
+      `;
+
+      card.innerHTML = `<div class="fields">${fieldsHtml}</div>`;
+
+      // --- 1. VISIBILITY LOGIC (Drive vs Type) ---
+      const driveCheckbox = card.querySelector('input[data-field="drive"]');
+      const typeRow = card.querySelector('.type-row');
+
+      const updateVisibility = () => {
+        if(driveCheckbox.checked) typeRow.classList.add('hidden-row');
+        else typeRow.classList.remove('hidden-row');
+      };
+      updateVisibility();
+
+      driveCheckbox.addEventListener('change', (e) => {
+         updateVisibility();
+         const valToSend = e.target.checked ? 'y' : 'n';
+         card.style.opacity = '0.5';
+         patchField(stop._doc_id, 'drive', valToSend).then(() => loadStops());
+      });
+
+      // --- 2. LINKS LOGIC ---
+      const linksListEl = card.querySelector('.links-list');
+      const addLinkBtn = card.querySelector('.btn-add-link');
+
+      // Function to scrape inputs and save to DB
+      const saveLinks = debounce(() => {
+        const rows = linksListEl.querySelectorAll('.link-row');
+        const newTitles = [];
+        const newLinks = [];
+        rows.forEach(row => {
+            newTitles.push(row.querySelector('.inp-title').value);
+            newLinks.push(row.querySelector('.inp-link').value);
+        });
+        
+        // Save pairwise
+        patchField(stop._doc_id, 'link_titles', newTitles);
+        patchField(stop._doc_id, 'links', newLinks);
+      }, 1000); // 1 sec delay to allow typing
+
+      // Function to render a single link row
+      const addLinkRow = (title, url) => {
+          const row = document.createElement('div');
+          row.className = 'link-row';
+          row.innerHTML = `
+            <input type="text" class="inp-title" placeholder="Title (e.g. Website)" value="${escapeHtml(title)}">
+            <input type="text" class="inp-link" placeholder="URL (https://...)" value="${escapeHtml(url)}">
+            <button class="btn-remove-link" title="Remove">×</button>
+          `;
+          
+          // Listeners for typing
+          row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', saveLinks));
+          
+          // Listener for remove
+          row.querySelector('.btn-remove-link').addEventListener('click', () => {
+              row.remove();
+              saveLinks(); // Save immediately on delete
+          });
+
+          linksListEl.appendChild(row);
+      };
+
+      // Initial render of existing links
+      for(let i=0; i<linksArray.length; i++) {
+          addLinkRow(titlesArray[i] || '', linksArray[i] || '');
       }
 
-      stops.forEach((stop, idx) => {
-        const docId = stop._doc_id || String(idx);
-        const card = document.createElement('div');
-        card.className = 'stop-card';
-        card.dataset.docId = docId;
-
-        // --- LEFT COLUMN (ID, Drag, Delete) ---
-        const left = document.createElement('div');
-        left.className = 'left';
-        
-        const metaDiv = document.createElement('div');
-        metaDiv.className = 'meta';
-        metaDiv.textContent = `#${idx+1}`;
-        left.appendChild(metaDiv);
-        
-        const dragDiv = document.createElement('div');
-        dragDiv.className = 'drag-handle';
-        dragDiv.innerHTML = '☰';
-        dragDiv.title = "Drag to reorder";
-        left.appendChild(dragDiv);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'delete-btn';
-        delBtn.innerHTML = '🗑'; 
-        delBtn.title = "Delete this stop";
-        delBtn.onclick = () => deleteStop(docId, card);
-        left.appendChild(delBtn);
-
-        card.appendChild(left);
-
-        // --- FIELDS COLUMN ---
-        const fields = document.createElement('div');
-        fields.className = 'fields';
-
-        VISIBLE_KEYS.forEach(conf => {
-          const key = conf.key;
-          const label = conf.label || key;
-          const type = conf.type || 'text';
-          const isReadonly = !!conf.readonly;
-
-          let rawVal = stop.hasOwnProperty(key) ? stop[key] : '';
-          
-          const row = document.createElement('div');
-          row.className = 'field-row';
-          row.dataset.rowKey = key; // Tag the row so we can hide it later
-          
-          let inputHtml = '';
-          const commonAttrs = `data-field="${escapeHtml(key)}" ${isReadonly ? 'readonly' : ''}`;
-
-          // --- LOGIC FOR DIFFERENT FIELD TYPES ---
-          
-          // 1. COLOUR (Radio Grid)
-          if (key === 'colour') {
-              const groupName = `colour_${docId}`; 
-              let gridHtml = '<div class="grid-container">';
-              COLOUR_OPTIONS.forEach(opt => {
-                  const isChecked = (rawVal === opt.val) ? 'checked' : '';
-                  gridHtml += `
-                    <label class="color-option">
-                      <input type="radio" name="${groupName}" value="${opt.val}" ${isChecked} ${commonAttrs} />
-                      <span class="swatch" style="background: ${opt.val};"></span> ${opt.name}
-                    </label>
-                  `;
-              });
-              gridHtml += '</div>';
-              inputHtml = `<div class="field-value">${gridHtml}</div>`;
-          }
-          // 2. PLACE TYPE (Special Radio Buttons)
-          else if (key === 'place_type') {
-              const groupName = `ptype_${docId}`;
-              let pillHtml = '<div class="pill-group">';
-              
-              TYPE_OPTIONS.forEach(opt => {
-                  const isChecked = (rawVal === opt.val) ? 'checked' : '';
-                  pillHtml += `
-                    <label class="pill-option">
-                        <input type="radio" name="${groupName}" value="${opt.val}" ${isChecked} ${commonAttrs} />
-                        ${opt.label}
-                    </label>
-                  `;
-              });
-              pillHtml += '</div>';
-              inputHtml = `<div class="field-value">${pillHtml}</div>`;
-          }
-          // 3. BOOLEAN (Checkbox - triggers visibility)
-          else if (type === 'bool') {
-            const checked = rawVal ? 'checked' : '';
-            // Note: We add an extra class 'toggle-trigger' to identify this specific checkbox
-            inputHtml = `<div class="field-value"><input type="checkbox" class="toggle-trigger" ${commonAttrs} ${checked} ${isReadonly ? 'disabled' : ''}></div>`;
-          } 
-          // 4. NUMBER
-          else if (type === 'number') {
-            const valStr = (rawVal === null || rawVal === undefined) ? '' : String(rawVal);
-            inputHtml = `<div class="field-value"><input type="number" value="${escapeHtml(valStr)}" ${commonAttrs}></div>`;
-          } 
-          // 5. TEXT
-          else {
-            const valStr = (rawVal === null || rawVal === undefined) ? '' : String(rawVal);
-            if (valStr.length > 60 || valStr.includes('\n') || key === 'desc') {
-                inputHtml = `<div class="field-value"><textarea rows="2" ${commonAttrs}>${escapeHtml(valStr)}</textarea></div>`;
-            } else {
-                inputHtml = `<div class="field-value"><input type="text" value="${escapeHtml(valStr)}" ${commonAttrs}></div>`;
-            }
-          }
-
-          row.innerHTML = `<div class="field-key">${escapeHtml(label)}</div>` + inputHtml;
-          fields.appendChild(row);
-        });
-
-        card.appendChild(fields);
-        grid.appendChild(card);
-
-        // Initialize visibility
-        updateVisibility(card);
+      // Add button listener
+      addLinkBtn.addEventListener('click', () => {
+          addLinkRow('', '');
       });
 
-      hookupInlineEditing();
-      initReorderSortable();
-    }
-
-    // Helper: Logic to show/hide the Type row based on Drive checkbox
-    function updateVisibility(card) {
-        const driveInput = card.querySelector('input[type="checkbox"][data-field="drive"]');
-        const typeRow = card.querySelector('.field-row[data-row-key="place_type"]');
-
-        if (driveInput && typeRow) {
-            if (driveInput.checked) {
-                // If "Include in Drive" is YES -> Hide Type selection
-                typeRow.classList.add('hidden-row');
-            } else {
-                // If "Include in Drive" is NO -> Show Type selection
-                typeRow.classList.remove('hidden-row');
-            }
-        }
-    }
-
-    // 3. Update Visual IDs
-    function updateVisualIndices() {
-        const cards = Array.from(grid.querySelectorAll('.stop-card'));
-        cards.forEach((c, i) => {
-            const meta = c.querySelector('.meta');
-            if (meta) meta.textContent = `#${i+1}`;
-        });
-    }
-
-    // 4. Delete Function
-    async function deleteStop(docId, cardElement) {
-        if (!confirm("Are you sure you want to delete this stop?")) return;
-        setStatus('Deleting...');
-        cardElement.style.opacity = '0.5';
-
-        try {
-            const payload = withOwner({ map_id: MAP_ID, doc_id: docId });
-            const resp = await fetch('/api/stops/delete', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!resp.ok) throw new Error(await resp.text());
-            cardElement.remove();
-            updateVisualIndices();
-            setStatus('Stop deleted.', false);
-            setTimeout(() => setStatus(''), 2000);
-        } catch (err) {
-            cardElement.style.opacity = '1';
-            setStatus('Delete failed: ' + err.message, true);
-        }
-    }
-
-    // 5. Edit Listeners
-    function hookupInlineEditing() {
-      // Inputs & Textareas
-      grid.querySelectorAll('input[type="text"], input[type="number"], textarea').forEach(el => {
-        if (el.readOnly) return;
-        const docId = el.closest('.stop-card').dataset.docId;
-        const saveFn = debounce(async (val) => { await patchField(docId, el.dataset.field, val); }, 600); 
-        el.addEventListener('input', (e) => saveFn(e.target.value));
+      // --- 3. STANDARD LISTENERS ---
+      card.querySelectorAll('input[type="text"]:not(.inp-title):not(.inp-link), textarea').forEach(el => {
+        if(!el.readOnly) el.addEventListener('input', debounce(e => patchField(stop._doc_id, el.dataset.field, e.target.value)));
       });
 
-      // Checkboxes (Boolean)
-      grid.querySelectorAll('input[type="checkbox"]').forEach(chk => {
-        if (chk.disabled) return;
-        const docId = chk.closest('.stop-card').dataset.docId;
-        chk.addEventListener('change', async (e) => {
-          if (chk.dataset.field === 'drive') {
-              updateVisibility(chk.closest('.stop-card'));
-          }
-          await patchField(docId, chk.dataset.field, e.target.checked);
+      card.querySelectorAll('input[type="radio"]').forEach(el => {
+        el.addEventListener('change', (e) => {
+          if(e.target.checked) patchField(stop._doc_id, el.dataset.field, e.target.value);
         });
       });
 
-      // Radio Buttons (Colour & Place Type)
-      grid.querySelectorAll('input[type="radio"]').forEach(radio => {
-        if (radio.disabled) return;
-        const docId = radio.closest('.stop-card').dataset.docId;
-        radio.addEventListener('change', async (e) => {
-             if (e.target.checked) {
-                 await patchField(docId, radio.dataset.field, e.target.value);
-             }
-        });
-      });
+      card.querySelector('.delete-btn-styled').addEventListener('click', () => deleteStop(stop._doc_id, card));
+
+      return card;
     }
+
+    // --- DATA OPERATIONS ---
 
     async function patchField(docId, field, value) {
-      if (!docId || !field) return;
-      setStatus(`Saving ${field}...`);
+      setStatus('Saving...');
       try {
         const payload = withOwner({ map_id: MAP_ID, doc_id: docId, field: field, value: value });
         const resp = await fetch('/api/stops/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
         if (!resp.ok) throw new Error(await resp.text());
-        setStatus('Saved.', false);
-        setTimeout(() => { if(statusEl.textContent === 'Saved.') setStatus(''); }, 2000);
-      } catch (err) {
-        setStatus('Failed to save: ' + err.message, true);
-      }
+        setStatus('Saved.');
+      } catch (err) { setStatus('Save failed', true); }
     }
 
-    // 6. Reordering
-    function initReorderSortable() {
-      if (grid.dataset.sortableInitialized) return;
-      grid.dataset.sortableInitialized = '1';
-      new Sortable(grid, {
+    async function deleteStop(docId, cardEl) {
+      if (!confirm("Are you sure you want to delete this stop completely?")) return;
+      cardEl.style.opacity = '0.5';
+      try {
+        const payload = withOwner({ map_id: MAP_ID, doc_id: docId });
+        await fetch('/api/stops/delete', {
+           method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+        });
+        cardEl.remove();
+        setStatus('Stop deleted.');
+      } catch (err) { setStatus('Delete failed', true); cardEl.style.opacity = '1'; }
+    }
+
+    function initSortable(el) {
+      if(el.dataset.sortable) return;
+      el.dataset.sortable = 'true';
+      new Sortable(el, {
         handle: '.drag-handle',
         animation: 150,
         ghostClass: 'dragging-ghost',
-        onStart: e => e.item.style.opacity = '0.5',
-        onEnd: async e => {
-          e.item.style.opacity = '';
-          updateVisualIndices(); 
-          const order = Array.from(grid.querySelectorAll('.stop-card')).map(c => c.dataset.docId);
-          await saveOrder(order);
+        onEnd: async () => {
+          const routeIds = Array.from(document.querySelectorAll('#route-list .route-card')).map(c => c.dataset.docId);
+          // Only sort based on route list, preserving the pool order implicitly or re-fetching
+          const poolIds = Array.from(document.querySelectorAll('#pool-list .stop-card')).map(c => c.dataset.docId);
+          // Note: Since pool now contains ALL items in your edited code, we need to be careful about duplication if we were strictly submitting an order.
+          // However, assuming the backend just takes the list of IDs to set an index, we pass the route first.
+          
+          setStatus('Reordering...');
+          try {
+            await fetch('/api/stops/reorder', {
+               method: 'POST', headers: {'Content-Type': 'application/json'},
+               body: JSON.stringify(withOwner({ map_id: MAP_ID, order: routeIds })) 
+            });
+            setStatus('Order saved.');
+          } catch(e) { setStatus('Reorder failed', true); }
         }
       });
     }
 
-    async function saveOrder(order) {
-      setStatus('Reordering...');
-      try {
-        const payload = withOwner({ map_id: MAP_ID, order: order });
-        const resp = await fetch('/api/stops/reorder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!resp.ok) throw new Error(await resp.text());
-        setStatus(`New order saved.`);
-        setTimeout(() => setStatus(''), 2000);
-      } catch (err) {
-        setStatus('Reorder failed: ' + err.message, true);
-      }
-    }
-
+    // Start
     loadStops();
+
   </script>
 </body>
 </html>

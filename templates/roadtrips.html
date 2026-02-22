@@ -69,7 +69,7 @@
             {% for r in owned_roadtrips %}
             <tr>
               <td>{{ r.name }}</td>
-              <td class="small">{{ r.created_at }}</td>
+              <td class="small">{{ r.created_at.strftime('%d %B %Y') }}</td>
               <td>
                 <a href="{{ url_for('open_map', map_id=r.id) }}">Open</a>
                 &nbsp;|&nbsp;
@@ -107,8 +107,8 @@
             {% for s in shared_roadtrips %}
             <tr>
               <td>{{ s.name }}</td>
-              <td class="shared-owner">{{ s.owner }}</td>
-              <td class="small">{{ s.created_at }}</td>
+              <td class="shared-owner">{{ s.owner_email }}</td>
+              <td class="small">{{ s.created_at.strftime('%d %B %Y') }}</td>
               <td>
                 <a href="{{ url_for('open_map_shared', owner_id=s.owner, map_id=s.id) }}">Open</a>
                 &nbsp;|&nbsp;

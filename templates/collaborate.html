@@ -1,4 +1,3 @@
-<!-- templates/collaborate.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -12,7 +11,7 @@
     .meta { color:#666; margin-bottom: 18px; }
     .panel { background:white; padding:16px; border-radius:8px; box-shadow: 0 4px 12px rgba(10,10,10,0.04); margin-bottom:12px; }
     label { display:block; margin-bottom:6px; font-weight:600; }
-    input[type="text"], select { width:100%; padding:8px 10px; border:1px solid #e6e6e6; border-radius:6px; }
+    input[type="text"], input[type="email"], select { width:100%; padding:8px 10px; border:1px solid #e6e6e6; border-radius:6px; }
     .row { display:flex; gap:8px; align-items:center; margin-top:8px; }
     .btn { padding:8px 12px; background:#007BFF; color:white; border-radius:8px; text-decoration:none; border:none; cursor:pointer; }
     .btn.secondary { background:#f1f5f9; color:#111; border: 1px solid #e6e6e6; }
@@ -30,53 +29,42 @@
   <div class="container">
     <h1>Collaborators</h1>
     <div class="meta">
-      Map ID: <strong>{{ map_id }}</strong> &nbsp;—&nbsp;
-      You: <strong>{{ user_id }}</strong>
+      Map : <strong> {{ map_name }} </strong>
       {% if owner_id and owner_id != user_id %} (owner: {{ owner_id }}){% endif %}
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, msg in messages %}
-          <div class="flash {{ 'success' if category=='success' else 'error' }}">{{ msg }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
 
     <div class="panel" aria-labelledby="add-collab-heading">
-      <h2 id="add-collab-heading" style="margin-top:0; margin-bottom:8px;">Add collaborator</h2>
-      <form method="post" action="{{ url_for('collaborate', map_id=map_id) }}">
-        <label for="collab_uid">Collaborator user id (Firebase UID)</label>
-        <input id="collab_uid" name="collab_uid" placeholder="Enter the Firebase UID of the collaborator" type="text" required />
-        <label for="role" style="margin-top:8px;">Role</label>
-        <select id="role" name="role">
-          <option value="editor" selected>Editor (can edit stops)</option>
-          <option value="viewer">Viewer (read-only)</option>
-        </select>
-
+      <h2 id="add-collab-heading" style="margin-top:0; margin-bottom:8px;">Add collaborator via Email</h2>
+      
+      <form method="post" action="{{ url_for('share_map') }}">
+        <input type="hidden" name="map_id" value="{{ map_id }}">
+        
+        <label for="email">Collaborator Email</label>
+        <input id="email" name="email" placeholder="friend@example.com" type="email" required />
+        
         <div class="row" style="margin-top:12px;">
-          <button class="btn" type="submit">Add collaborator</button>
+          <button class="btn" type="submit">Share Map</button>
           <a class="btn secondary" href="{{ url_for('open_map', map_id=map_id) }}" style="text-decoration:none;">Back to map</a>
         </div>
       </form>
 
-      <div style="margin-top:12px;" class="muted">
-        Tip: enter the collaborator's Firebase UID. Later you can extend this to accept email addresses and resolve them to UIDs.
-      </div>
     </div>
 
     <div class="panel">
       <h2 style="margin-top:0;">Current collaborators</h2>
+      <p class="small" style="margin-bottom:12px;">Note: Collaborators are listed by their internal User ID.</p>
 
       <div class="collab-list" id="collab-list">
         {% if collaborators %}
           {% for c_uid, meta in collaborators.items() %}
             <div class="collab-item" data-collab-uid="{{ c_uid }}">
               <div>
-                <div><strong>{{ c_uid }}</strong></div>
-                <div class="small">role: {{ meta.get('role', 'editor') }}{% if meta.get('by') %} — added by {{ meta.get('by') }}{% endif %}</div>
+                <div>
+                  <strong>{{ email_map.get(c_uid, c_uid) }}</strong>
+                </div>
                 {% if meta.get('added_at') %}
-                  <div class="small">added: {{ meta.get('added_at') }}</div>
+                  <div class="small">added: {{ created_at.strftime('%d %B %Y') }}</div>
                 {% endif %}
               </div>
 
@@ -84,8 +72,7 @@
                 {% if user_id == owner_id and c_uid != owner_id %}
                   <button type="button" class="btn secondary remove-btn" onclick="removeCollaborator('{{ map_id }}','{{ c_uid }}', this)">Remove</button>
                 {% else %}
-                  <!-- show nothing (or could show a disabled button) -->
-                {% endif %}
+                  {% endif %}
               </div>
             </div>
           {% endfor %}

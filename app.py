@@ -6,6 +6,7 @@ import base64
 import datetime
 from functools import wraps
 import csv
+import datetime
 
 from Utility.plotting_functions import *
 from Utility.html_edits import *
@@ -137,6 +138,47 @@ def create_app():
             })
 
 
+    @app.route('/share_map', methods=['POST'])
+    @login_required
+    def share_map():
+        """
+        Looks up a user by email and adds them as a collaborator.
+        """
+        email = request.form.get('email')
+        map_id = request.form.get('map_id')
+        
+        if not email or not map_id:
+            flash("Email and Map ID are required.", "error")
+            return redirect(url_for('open_map', map_id=map_id))
+
+        # Check ownership (Security Check)
+        db = app.db
+        uid = session.get('uid')
+        map_ref = db.collection("users").document(uid).collection("maps").document(map_id)
+        doc = map_ref.get()
+        
+        if not doc.exists:
+             flash("Map not found or you are not the owner.", "error")
+             return redirect(url_for('roadtrips'))
+
+        try:
+            # 1. Look up the user by email using Firebase Admin
+            user = fb_auth.get_user_by_email(email)
+            target_uid = user.uid
+
+            # 2. Add this UID to your Firestore document using existing helper
+            add_collaborator_to_map(uid, map_id, target_uid)
+
+            flash(f"Successfully shared with {email}!", "success")
+        except fb_auth.UserNotFoundError:
+            flash(f"No user found with email {email}. Ask them to sign up first!", "error")
+        except Exception as e:
+            app.logger.error(f"Sharing failed: {e}")
+            flash("An error occurred while sharing.", "error")
+
+        return redirect(url_for('open_map', map_id=map_id))
+
+
     @app.route('/collaborate', methods=['GET', 'POST'])
     @login_required
     def collaborate():
@@ -170,19 +212,20 @@ def create_app():
             return redirect(url_for('roadtrips'))
 
         map_data = map_doc.to_dict() or {}
+        print(map_data['name'])
         # Only the owner should be allowed to add collaborators via this simple UI.
         owner_uid = map_data.get('owner') or uid
         if request.method == 'POST':
             # Only owner can add collaborators in this simple flow
             if uid != owner_uid:
                 flash("Only the map owner may add collaborators.", "error")
-                return redirect(url_for('collaborate', map_id=map_id))
+                return redirect(url_for('collaborate', map_id=map_id, map_name=map_data['name']))
 
             collab_uid = (request.form.get('collab_uid') or '').strip()
             role = (request.form.get('role') or 'editor').strip()
             if not collab_uid:
                 flash("Please enter a collaborator user id.", "error")
-                return redirect(url_for('collaborate', map_id=map_id))
+                return redirect(url_for('collaborate', map_id=map_id, map_name=map_data['name']))
 
             try:
                 add_collaborator_to_map(owner_uid, map_id, collab_uid, role=role)
@@ -191,16 +234,38 @@ def create_app():
                 app.logger.exception("Failed to add collaborator: %s", e)
                 flash("Failed to add collaborator (check server logs).", "error")
 
-            return redirect(url_for('collaborate', map_id=map_id))
+            return redirect(url_for('collaborate', map_id=map_id, map_name=map_data['name']))
 
         # For GET: render current collaborators
         collaborators = map_data.get('collaborators') or {}
-        # collaborators is a dict keyed by uid -> { role, added_at, by }
+        
+        # --- NEW CODE: Fetch Emails for these UIDs ---
+        email_map = {}
+        if collaborators:
+            try:
+                # 1. Create a list of identifiers for batch lookup
+                uids_to_fetch = [fb_auth.UidIdentifier(uid) for uid in collaborators.keys()]
+                
+                # 2. Fetch all users in one API call
+                result = fb_auth.get_users(uids_to_fetch)
+                
+                # 3. Create a dictionary: { uid: email }
+                for user_rec in result.users:
+                    email_map[user_rec.uid] = user_rec.email
+            except Exception as e:
+                app.logger.error(f"Error fetching collaborator emails: {e}")
+        # ---------------------------------------------
+
+        created_at = map_data['created_at']
+        created_at = datetime.datetime.fromisoformat(f'{created_at}')
         return render_template('collaborate.html',
                                map_id=map_id,
                                user_id=uid,
                                owner_id=owner_uid,
-                               collaborators=collaborators)
+                               collaborators=collaborators,
+                               map_name=map_data['name'],
+                               created_at=created_at,
+                               email_map=email_map) # Pass the map to the template
 
 
     @app.route('/collaborators/remove', methods=['POST'])
@@ -792,7 +857,7 @@ def create_app():
                 owned_roadmaps.append({
                     "id": d.id,
                     "name": name,
-                    "created_at": created_str,
+                    "created_at": datetime.datetime.fromisoformat(created_str),
                     "filename": filename,
                     "owner": uid
                 })
@@ -818,12 +883,16 @@ def create_app():
                 created_str = created.isoformat() if hasattr(created, 'isoformat') else str(created)
                 filename = data.get('filename')
 
+
+                owner_email = fb_auth.get_user(uid).email
+
                 shared_roadmaps.append({
                     "id": d.id,
                     "name": name,
-                    "created_at": created_str,
+                    "created_at": datetime.datetime.fromisoformat(created_str),
                     "filename": filename,
-                    "owner": owner_id
+                    "owner": owner_id,
+                    "owner_email": owner_email
                 })
         except Exception as e:
             app.logger.exception("Error listing shared roadmaps: %s", e)
@@ -892,7 +961,7 @@ def create_app():
         place_id = None
 
         if nickname == '': nickname = name
-
+        
         map_id = request.form.get('map_id') or session.get('current_map_id')
 
         gmaps_id, lat, long = get_place_id(name)
@@ -966,4 +1035,4 @@ def create_app():
 
 if __name__ == '__main__':
     application = create_app()
-    application.run(host='0.0.0.0', port=5000, debug=True)
+    application.run(host='0.0.0.0', port=5001, debug=True)

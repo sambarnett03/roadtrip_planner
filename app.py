@@ -29,7 +29,7 @@ from make_map import generate_map
 import tempfile
 
 
-env_path = '/home/sbarnett/roadtrip_planner/.env'
+env_path = '/home/sam_barnett/Documents/other_projects/roadtrip_planner'
 load_dotenv(dotenv_path=env_path)
 
 
@@ -57,7 +57,7 @@ def create_app():
 
         # 3. If path is missing or wrong, use a hardcoded fallback for PythonAnywhere
         if not cred_path or not os.path.exists(cred_path):
-            cred_path = '/home/sbarnett/roadtrip_planner/roadmap-planner-87b0a-firebase-adminsdk-fbsvc-59190012ce.json'
+            cred_path = 'roadmap-planner-87b0a-firebase-adminsdk-fbsvc-59190012ce.json'
 
         if os.path.exists(cred_path):
             cred = credentials.Certificate(cred_path)
@@ -1009,7 +1009,7 @@ def create_app():
         if not id_token:
             return jsonify({"error": "missing idToken"}), 400
         try:
-            decoded = fb_auth.verify_id_token(id_token)
+            decoded = fb_auth.verify_id_token(id_token, clock_skew_seconds=60)
             uid = decoded.get('uid')
             session['uid'] = uid
             app.logger.info("Created server session for uid=%s", uid)

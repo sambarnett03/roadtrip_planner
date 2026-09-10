@@ -70,7 +70,14 @@ class RoadTrip:
         return [place.gmaps_id for place in self.places.values()]
     
     def get_all_coords(self):
-        return [[float(place.lat), float(place.lng)] for place in self.places.values()]
+        coords = []
+        for place in self.places.values():
+            try:
+                coords.append([float(place.lat), float(place.lng)])
+            except (TypeError, ValueError):
+                # Skip stops without usable coordinates rather than breaking the map.
+                continue
+        return coords
     
     def add_links_to_place(self, tag, link_titles, links):        
         if type(link_titles) != list:

@@ -133,6 +133,18 @@
 </head>
 <body>
   <div id="errorMessage" style="color: red; margin-bottom: 1em;"></div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}"
+             style="margin-bottom: 1em; padding: 10px 12px; border-radius: 6px;
+                    color: {% if category == 'error' %}#8B0000{% else %}#0b5d1e{% endif %};
+                    background: {% if category == 'error' %}#fde8e8{% else %}#e6f4ea{% endif %};">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
   <div class="form-container">
     <h1>Add a Marker</h1>
 

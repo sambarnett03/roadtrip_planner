@@ -43,7 +43,7 @@ def generate_map(map_id, owner_id, rows):
 
         # Drives
         gmaps_ids = driving_stops.get_all_gmapsids()
-        plot_drives(m, driving_stops, gmaps_ids, coords)
+        plot_drives(m, driving_stops, gmaps_ids, driving_stops.get_all_coords())
 
     tf = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_", suffix=".html", delete=False)
     tf_no_buttons = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_no_buttons_", suffix=".html", delete=False)

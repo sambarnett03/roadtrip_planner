@@ -429,7 +429,8 @@ def create_app():
             else:
                 flash('Firebase not configured — not saved.', 'warning')
             return redirect(url_for('dashboard'))
-        return render_template('add_marker.html')
+        map_id = request.args.get('map_id') or session.get('current_map_id')
+        return render_template('add_marker.html', map_id=map_id)
 
 
 
@@ -968,7 +969,16 @@ def create_app():
         
         map_id = request.form.get('map_id') or session.get('current_map_id')
 
-        gmaps_id, lat, long = get_place_id(name)
+        try:
+            gmaps_id, lat, long = get_place_id(name)
+        except Exception as e:
+            app.logger.warning("Geocoding failed for %r: %s", name, e)
+            flash(
+                f"Couldn't find \"{name}\" on Google Maps. Try a more specific "
+                f"name (e.g. include the town and country).",
+                'error',
+            )
+            return redirect(url_for('add_place', map_id=map_id))
 
         place_object = Place(place_id, name, desc, colour, drive, place_type, nickname, gmaps_id, lat, long)
 

@@ -64,11 +64,11 @@ def add_pin(m, trip):
             ).add_to(m)
 
         else:
-            if place.place_type == 'poi':
-                icon = folium.Icon(icon="info-sign", prefix="glyphicon", color=place.colour)
-
             if place.place_type == 'sleep':
                 icon = folium.Icon(icon="fa-solid fa-bed", prefix="fa", color=place.colour)
+            else:
+                # Default to a POI marker for any unknown/blank type.
+                icon = folium.Icon(icon="info-sign", prefix="glyphicon", color=place.colour)
 
             folium.Marker(
                 location=[place.lat, place.lng],

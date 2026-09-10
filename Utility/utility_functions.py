@@ -78,19 +78,24 @@ def get_distance(loc_ids, i, mode='driving'):
         units='metric'
     )
 
-    if result['rows'][0]['elements'][0]['status'] == 'ZERO_RESULTS':
+    element = result['rows'][0]['elements'][0]
+    if element.get('status') != 'OK':
+        # ZERO_RESULTS, NOT_FOUND, etc. - no usable leg data.
         duration = 'na'
         distance = 'na'
-        
+        duration_s = 0
+        distance_m = 0
     else:
-        duration = result['rows'][0]['elements'][0]['duration']['text']
-        distance = result['rows'][0]['elements'][0]['distance']['text']
-        
+        duration = element['duration']['text']
+        distance = element['distance']['text']
+        duration_s = element['duration']['value']
+        distance_m = element['distance']['value']
+
     directions = gmaps.directions(
         origin=f"place_id:{origin_id}",
         destination=f"place_id:{destination_id}",
         mode="driving")
-        
+
     if directions:
         # Extract and decode the route polyline
         route_polyline = directions[0]['overview_polyline']['points']
@@ -98,8 +103,8 @@ def get_distance(loc_ids, i, mode='driving'):
         route_type = "actual"
     else:
         decoded_route = 'failed'
-    
-    return distance, duration, decoded_route
+
+    return distance, duration, decoded_route, duration_s, distance_m
 
 
     
@@ -109,23 +114,27 @@ def plot_drives(m, stops, gmaps_ids, coords):
     if n < 2:
         return
 
-    for i in range(n):
-        # Leg goes from stop i to stop i+1, wrapping the final stop back to the
-        # first one (matching get_distance's 'final' round-trip behaviour).
-        is_final = (i + 1 >= n)
-        j = 0 if is_final else i + 1
-        marker = 'final' if is_final else i
+    total_seconds = 0
+    total_meters = 0
 
+    # One segment per consecutive pair of stops. Each segment's popup shows the
+    # time/distance for *that leg only*; the running totals go in a corner box.
+    for i in range(n - 1):
         try:
-            distance, duration, decoded_route = get_distance(gmaps_ids, marker)
+            distance, duration, decoded_route, secs, meters = get_distance(gmaps_ids, i)
         except Exception:
             # A stop Google Maps can't route to/from shouldn't break the whole map.
-            distance, duration, decoded_route = 'na', 'na', 'failed'
+            distance, duration, decoded_route, secs, meters = 'na', 'na', 'failed', 0, 0
+
+        total_seconds += secs
+        total_meters += meters
 
         if decoded_route == 'failed':
-            add_route_segment(m, [coords[i], coords[j]], distance, duration)
+            add_route_segment(m, [coords[i], coords[i + 1]], distance, duration)
         else:
             add_route_segment(m, decoded_route, distance, duration)
+
+    add_trip_summary(m, total_seconds, total_meters)
 
     return
     

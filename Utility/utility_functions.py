@@ -105,21 +105,28 @@ def get_distance(loc_ids, i, mode='driving'):
     
     
 def plot_drives(m, stops, gmaps_ids, coords):
-    for i in range(len(stops.places.values())):
-        if i + 1 < len(stops.places.keys()):
-            distance, duration, decoded_route = get_distance(gmaps_ids, i)
-            if decoded_route == 'failed':
-                add_route_segment(m, [coords[i], coords[i+1]], distance, duration)
-            else:
-                add_route_segment(m, decoded_route, distance, duration)
-            
+    n = len(gmaps_ids)
+    if n < 2:
+        return
+
+    for i in range(n):
+        # Leg goes from stop i to stop i+1, wrapping the final stop back to the
+        # first one (matching get_distance's 'final' round-trip behaviour).
+        is_final = (i + 1 >= n)
+        j = 0 if is_final else i + 1
+        marker = 'final' if is_final else i
+
+        try:
+            distance, duration, decoded_route = get_distance(gmaps_ids, marker)
+        except Exception:
+            # A stop Google Maps can't route to/from shouldn't break the whole map.
+            distance, duration, decoded_route = 'na', 'na', 'failed'
+
+        if decoded_route == 'failed':
+            add_route_segment(m, [coords[i], coords[j]], distance, duration)
         else:
-            distance, duration, decoded_route = get_distance(gmaps_ids, 'final')
-            if decoded_route == 'failed':
-                add_route_segment(m, [coords[i], coords[i+1]], distance, duration)
-            else:
-                add_route_segment(m, decoded_route, distance, duration)
-        
+            add_route_segment(m, decoded_route, distance, duration)
+
     return
     
     

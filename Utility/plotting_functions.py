@@ -52,6 +52,46 @@ def popup_for_drives(distance, duration):
     return html_lines
 
 
+def _format_duration(total_seconds):
+    total_minutes = int(round(total_seconds / 60))
+    hours, minutes = divmod(total_minutes, 60)
+    if hours and minutes:
+        return f"{hours} h {minutes} min"
+    if hours:
+        return f"{hours} h"
+    return f"{minutes} min"
+
+
+def add_trip_summary(m, total_seconds, total_meters):
+    """Fixed box in the top-left corner with the whole-journey driving totals."""
+    if total_seconds <= 0:
+        return
+
+    duration_txt = _format_duration(total_seconds)
+    distance_txt = f"{total_meters / 1000:,.0f} km"
+
+    html = f"""
+    <div id="trip-summary" style="
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 9999;
+        background: white;
+        padding: 10px 14px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+        font-family: Arial, sans-serif;
+        font-size: 13px;
+        line-height: 1.4;
+        color: #333;
+    ">
+        <div style="font-weight: bold; color: #007BFF; margin-bottom: 2px;">Total drive</div>
+        {duration_txt} &middot; {distance_txt}
+    </div>
+    """
+    m.get_root().html.add_child(folium.Element(html))
+
+
 
 def add_pin(m, trip):
 

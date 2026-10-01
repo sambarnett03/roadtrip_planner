@@ -94,6 +94,7 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
           left: auto;
           background-color: white;
           overflow-x: hidden;
+          overflow-y: auto;
           transition: 0.3s;
           padding-top: 60px;
           box-shadow: -2px 0 5px rgba(0,0,0,0.5);
@@ -101,7 +102,7 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
 
       #mySidebar [contenteditable] {{
         width: 80%;
-        max-height: 70vh;
+        max-height: 45vh;
         margin: 20px;
         padding: 10px;
         overflow-y: auto;
@@ -144,6 +145,79 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
         margin: 0 20px 10px 20px;
         font-family: Arial, sans-serif;
       }}
+
+      .pdf-section {{
+        margin: 0 20px 30px 20px;
+        font-family: Arial, sans-serif;
+        font-size: 13px;
+      }}
+
+      .pdf-section h4 {{
+        margin: 10px 0 6px 0;
+        font-size: 14px;
+      }}
+
+      #pdfList {{
+        list-style: none;
+        padding: 0;
+        margin: 0 0 10px 0;
+      }}
+
+      #pdfList li {{
+        padding: 6px 0;
+        border-bottom: 1px solid #eee;
+      }}
+
+      #pdfList .pdf-name {{
+        font-weight: bold;
+        color: #007BFF;
+        text-decoration: none;
+        word-break: break-word;
+      }}
+
+      #pdfList .pdf-meta {{
+        color: #888;
+        font-size: 11px;
+        margin-top: 2px;
+      }}
+
+      #pdfList .pdf-meta a,
+      #pdfList .pdf-meta button {{
+        color: #007BFF;
+        background: none;
+        border: none;
+        padding: 0;
+        margin-left: 6px;
+        font-size: 11px;
+        cursor: pointer;
+        text-decoration: underline;
+      }}
+
+      #pdfList .pdf-meta button {{
+        color: #c0392b;
+      }}
+
+      #pdfList .pdf-empty {{
+        color: #888;
+        border-bottom: none;
+      }}
+
+      #pdfUploadForm input[type="text"] {{
+        width: 100%;
+        box-sizing: border-box;
+        padding: 5px;
+        margin-bottom: 6px;
+      }}
+
+      #pdfUploadForm input[type="file"] {{
+        width: 100%;
+        margin-bottom: 6px;
+      }}
+
+      #pdfStatus {{
+        margin-top: 6px;
+        color: #555;
+      }}
     </style>
 
     <div id="mySidebar">
@@ -155,8 +229,19 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
         </label>
       </div>
       <div id="sharedContent" contenteditable="false"></div>
+
+      <div class="pdf-section">
+        <h4 id="pdfHeading">Shared files</h4>
+        <ul id="pdfList"></ul>
+        <form id="pdfUploadForm">
+          <input type="text" id="pdfDisplayName" maxlength="120" placeholder="Display name (optional)">
+          <input type="file" id="pdfFile" accept="application/pdf,.pdf" required>
+          <button type="submit" id="pdfUploadBtn">Upload PDF</button>
+          <div id="pdfStatus"></div>
+        </form>
+      </div>
     </div>
-    <div id="openBtn" onclick="openSidebar()">☰ Notes</div>
+    <div id="openBtn" onclick="openSidebar()">☰ Notes &amp; Files</div>
 
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -276,6 +361,158 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
         }};
       }}
 
+      // --- PDF ATTACHMENTS ---
+      // Shared mode lists PDFs everyone on the map can see; personal mode
+      // lists PDFs only the current user can see. Served by the Flask /api/pdfs routes.
+      const pdfHeading = document.getElementById("pdfHeading");
+      const pdfList = document.getElementById("pdfList");
+      const pdfUploadForm = document.getElementById("pdfUploadForm");
+      const pdfDisplayName = document.getElementById("pdfDisplayName");
+      const pdfFile = document.getElementById("pdfFile");
+      const pdfUploadBtn = document.getElementById("pdfUploadBtn");
+      const pdfStatus = document.getElementById("pdfStatus");
+      const PDF_MAX_BYTES = 10 * 1024 * 1024;
+      let sharedUploadError = null;
+
+      function pdfVisibility() {{
+        return toggle.checked ? "shared" : "private";
+      }}
+
+      function pdfQuery(extra) {{
+        const params = new URLSearchParams({{ map_id: mapId, owner_id: ownerId }});
+        for (const key in (extra || {{}})) params.set(key, extra[key]);
+        return params.toString();
+      }}
+
+      function formatSize(bytes) {{
+        if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + " KB";
+        return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+      }}
+
+      function pdfMessage(text) {{
+        pdfList.innerHTML = "";
+        const li = document.createElement("li");
+        li.className = "pdf-empty";
+        li.textContent = text;
+        pdfList.appendChild(li);
+      }}
+
+      function renderPdfs(pdfs) {{
+        if (!pdfs.length) {{
+          pdfMessage(pdfVisibility() === "shared" ? "No shared files yet." : "No private files yet.");
+          return;
+        }}
+        pdfList.innerHTML = "";
+        for (const pdf of pdfs) {{
+          const li = document.createElement("li");
+
+          const view = document.createElement("a");
+          view.className = "pdf-name";
+          view.href = "/api/pdfs/" + encodeURIComponent(pdf.id) + "?" + pdfQuery();
+          view.target = "_blank";
+          view.rel = "noopener";
+          view.textContent = pdf.display_name;
+          view.title = pdf.filename;
+          li.appendChild(view);
+
+          const meta = document.createElement("div");
+          meta.className = "pdf-meta";
+          meta.appendChild(document.createTextNode(formatSize(pdf.size)));
+
+          const download = document.createElement("a");
+          download.href = "/api/pdfs/" + encodeURIComponent(pdf.id) + "?" + pdfQuery({{ download: "1" }});
+          download.textContent = "Download";
+          meta.appendChild(download);
+
+          if (pdf.can_delete) {{
+            const del = document.createElement("button");
+            del.type = "button";
+            del.textContent = "Delete";
+            del.onclick = () => deletePdf(pdf);
+            meta.appendChild(del);
+          }}
+
+          li.appendChild(meta);
+          pdfList.appendChild(li);
+        }}
+      }}
+
+      async function loadPdfs() {{
+        const visibility = pdfVisibility();
+        pdfHeading.textContent = visibility === "shared" ? "Shared files" : "My private files";
+        pdfMessage("Loading…");
+        try {{
+          const resp = await fetch("/api/pdfs?" + pdfQuery({{ visibility: visibility }}));
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || resp.statusText);
+          if (visibility !== pdfVisibility()) return; // mode toggled while loading
+          // Viewers can read shared files but not add them; remember why so the
+          // upload form can explain it instead of failing silently.
+          sharedUploadError = data.can_upload_shared ? null : data.upload_shared_error;
+          renderPdfs(data.pdfs || []);
+        }} catch (err) {{
+          pdfMessage("Could not load files: " + err.message);
+        }}
+      }}
+
+      async function deletePdf(pdf) {{
+        if (!confirm('Delete "' + pdf.display_name + '"?')) return;
+        try {{
+          const resp = await fetch("/api/pdfs/delete", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ map_id: mapId, owner_id: ownerId, pdf_id: pdf.id }})
+          }});
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || resp.statusText);
+          loadPdfs();
+        }} catch (err) {{
+          alert("Could not delete file: " + err.message);
+        }}
+      }}
+
+      pdfFile.onchange = () => {{
+        const file = pdfFile.files[0];
+        pdfDisplayName.placeholder = file ? file.name.replace(/\\.pdf$/i, "") : "Display name (optional)";
+      }};
+
+      pdfUploadForm.onsubmit = async (e) => {{
+        e.preventDefault();
+        const file = pdfFile.files[0];
+        if (!file) return;
+        if (pdfVisibility() === "shared" && sharedUploadError) {{
+          pdfStatus.textContent = sharedUploadError;
+          return;
+        }}
+        if (file.size > PDF_MAX_BYTES) {{
+          pdfStatus.textContent = "That PDF is too large (max 10 MB).";
+          return;
+        }}
+
+        const form = new FormData();
+        form.append("file", file);
+        form.append("display_name", pdfDisplayName.value.trim());
+        form.append("visibility", pdfVisibility());
+        form.append("map_id", mapId);
+        form.append("owner_id", ownerId);
+
+        pdfUploadBtn.disabled = true;
+        pdfStatus.textContent = "Uploading…";
+        try {{
+          const resp = await fetch("/api/pdfs/upload", {{ method: "POST", body: form }});
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || resp.statusText);
+          pdfUploadForm.reset();
+          pdfDisplayName.placeholder = "Display name (optional)";
+          pdfStatus.textContent = "";
+          loadPdfs();
+        }} catch (err) {{
+          pdfStatus.textContent = "Upload failed: " + err.message;
+        }} finally {{
+          pdfUploadBtn.disabled = false;
+        }}
+      }};
+
       // Set initial mode on page load
       window.onload = () => {{
         const mode = localStorage.getItem("noteMode") || "shared";
@@ -286,6 +523,7 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
         }} else {{
           loadPersonal();
         }}
+        loadPdfs();
       }};
 
       // Handle Toggle Switch
@@ -298,6 +536,8 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
         }} else {{
           loadPersonal();
         }}
+        pdfStatus.textContent = "";
+        loadPdfs();
       }};
     </script>
     """

@@ -22,6 +22,7 @@ from flask import (
 # Firebase Admin (Firestore)
 import firebase_admin
 from firebase_admin import credentials, auth as fb_auth, firestore as fb_firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from werkzeug.utils import secure_filename
 
@@ -671,6 +672,202 @@ def create_app():
 
 
 
+
+
+    # -------------------------
+    # PDF attachments
+    # -------------------------
+    # Firebase Storage isn't enabled on this project, so PDFs are stored in
+    # Firestore split into <1 MiB chunks:
+    #   users/{owner}/maps/{map}/pdfs/{pdf_id}            -> metadata
+    #   users/{owner}/maps/{map}/pdfs/{pdf_id}/chunks/{n} -> {'data': bytes}
+    # 'shared' PDFs are visible to everyone with access to the map;
+    # 'private' PDFs are only visible to the user who uploaded them.
+    PDF_MAX_BYTES = 10 * 1024 * 1024
+    PDF_CHUNK_BYTES = 900 * 1024
+    PDF_CHUNKS_PER_BATCH = 5  # keeps each commit well under Firestore's 10 MiB request limit
+    VIEWER_UPLOAD_ERROR = ("You're a viewer on this map. Ask the owner to add you as an editor "
+                           "to upload shared files (you can still upload private ones).")
+
+    def pdfs_collection(owner_id, map_id):
+        return app.db.collection("users").document(owner_id) \
+            .collection("maps").document(map_id).collection("pdfs")
+
+    def can_see_pdf(meta, uid):
+        return meta.get('visibility') == 'shared' or meta.get('uploaded_by') == uid
+
+    def can_delete_pdf(meta, uid, owner_id, has_write):
+        if meta.get('visibility') == 'private':
+            return meta.get('uploaded_by') == uid
+        return uid == owner_id or (has_write and meta.get('uploaded_by') == uid)
+
+    def pdf_request_ids(source):
+        uid = session.get('uid')
+        map_id = source.get('map_id') or session.get('current_map_id')
+        owner_id = source.get('owner_id') or uid
+        return uid, map_id, owner_id
+
+    @app.route('/api/pdfs')
+    @login_required
+    def api_list_pdfs():
+        uid, map_id, owner_id = pdf_request_ids(request.args)
+        visibility = request.args.get('visibility', 'shared')
+        if not map_id or visibility not in ('shared', 'private'):
+            return jsonify({'error': 'missing or invalid parameters'}), 400
+
+        allowed, _ = check_map_access(owner_id, map_id, uid)
+        if not allowed:
+            return jsonify({'error': 'access denied'}), 403
+        has_write, _ = check_map_access(owner_id, map_id, uid, require_write=True)
+
+        try:
+            query = pdfs_collection(owner_id, map_id).where(filter=FieldFilter('visibility', '==', visibility))
+            pdfs = []
+            for doc in query.stream():
+                meta = doc.to_dict() or {}
+                if not can_see_pdf(meta, uid):
+                    continue
+                uploaded_at = meta.get('uploaded_at')
+                pdfs.append({
+                    'id': doc.id,
+                    'display_name': meta.get('display_name'),
+                    'filename': meta.get('filename'),
+                    'size': meta.get('size'),
+                    'uploaded_at': uploaded_at.isoformat() if uploaded_at else None,
+                    'can_delete': can_delete_pdf(meta, uid, owner_id, has_write),
+                })
+            pdfs.sort(key=lambda p: p['uploaded_at'] or '', reverse=True)
+            return jsonify({
+                'pdfs': pdfs,
+                'can_upload_shared': has_write,
+                'upload_shared_error': None if has_write else VIEWER_UPLOAD_ERROR,
+            }), 200
+        except Exception as e:
+            app.logger.exception("api_list_pdfs error: %s", e)
+            return jsonify({'error': 'failed to list PDFs'}), 500
+
+    @app.route('/api/pdfs/upload', methods=['POST'])
+    @login_required
+    def api_upload_pdf():
+        uid, map_id, owner_id = pdf_request_ids(request.form)
+        visibility = request.form.get('visibility', 'shared')
+        display_name = (request.form.get('display_name') or '').strip()
+        fileobj = request.files.get('file')
+
+        if not map_id or visibility not in ('shared', 'private'):
+            return jsonify({'error': 'missing or invalid parameters'}), 400
+        if not fileobj or not fileobj.filename:
+            return jsonify({'error': 'no file selected'}), 400
+
+        # Shared files need edit rights; anyone who can see the map may keep private ones.
+        allowed, _ = check_map_access(owner_id, map_id, uid)
+        if not allowed:
+            return jsonify({'error': 'you do not have access to this map'}), 403
+        if visibility == 'shared':
+            has_write, _ = check_map_access(owner_id, map_id, uid, require_write=True)
+            if not has_write:
+                return jsonify({'error': VIEWER_UPLOAD_ERROR}), 403
+
+        data = fileobj.read(PDF_MAX_BYTES + 1)
+        if len(data) > PDF_MAX_BYTES:
+            return jsonify({'error': f'PDF is too large (max {PDF_MAX_BYTES // (1024 * 1024)} MB)'}), 400
+        if not data.startswith(b'%PDF-'):
+            return jsonify({'error': 'file is not a PDF'}), 400
+
+        filename = secure_filename(fileobj.filename) or 'document.pdf'
+        if not filename.lower().endswith('.pdf'):
+            filename += '.pdf'
+        if not display_name:
+            display_name = os.path.splitext(fileobj.filename)[0]
+        display_name = display_name[:120]
+
+        try:
+            doc_ref = pdfs_collection(owner_id, map_id).document()
+            chunks = [data[i:i + PDF_CHUNK_BYTES] for i in range(0, len(data), PDF_CHUNK_BYTES)]
+
+            for start in range(0, len(chunks), PDF_CHUNKS_PER_BATCH):
+                batch = app.db.batch()
+                for n in range(start, min(start + PDF_CHUNKS_PER_BATCH, len(chunks))):
+                    batch.set(doc_ref.collection('chunks').document(str(n)), {'data': chunks[n]})
+                batch.commit()
+
+            # Metadata goes last so a half-finished upload never shows up in the list.
+            doc_ref.set({
+                'display_name': display_name,
+                'filename': filename,
+                'size': len(data),
+                'num_chunks': len(chunks),
+                'visibility': visibility,
+                'uploaded_by': uid,
+                'uploaded_at': fb_firestore.SERVER_TIMESTAMP,
+            })
+            return jsonify({'status': 'ok', 'id': doc_ref.id}), 200
+        except Exception as e:
+            app.logger.exception("api_upload_pdf error: %s", e)
+            return jsonify({'error': 'failed to upload PDF'}), 500
+
+    @app.route('/api/pdfs/<pdf_id>')
+    @login_required
+    def api_get_pdf(pdf_id):
+        uid, map_id, owner_id = pdf_request_ids(request.args)
+        if not map_id:
+            return "Missing map_id", 400
+
+        allowed, _ = check_map_access(owner_id, map_id, uid)
+        if not allowed:
+            return "Access denied", 403
+
+        doc_ref = pdfs_collection(owner_id, map_id).document(pdf_id)
+        doc = doc_ref.get()
+        meta = (doc.to_dict() or {}) if doc.exists else {}
+        if not doc.exists or not can_see_pdf(meta, uid):
+            return "PDF not found", 404
+
+        try:
+            chunk_docs = sorted(doc_ref.collection('chunks').stream(), key=lambda d: int(d.id))
+            data = b''.join((c.to_dict() or {}).get('data', b'') for c in chunk_docs)
+        except Exception as e:
+            app.logger.exception("api_get_pdf error: %s", e)
+            return "Failed to load PDF", 500
+
+        return send_file(
+            io.BytesIO(data),
+            mimetype='application/pdf',
+            as_attachment=request.args.get('download') == '1',
+            download_name=meta.get('filename') or 'document.pdf',
+        )
+
+    @app.route('/api/pdfs/delete', methods=['POST'])
+    @login_required
+    def api_delete_pdf():
+        payload = request.get_json(silent=True) or {}
+        uid, map_id, owner_id = pdf_request_ids(payload)
+        pdf_id = payload.get('pdf_id')
+        if not map_id or not pdf_id:
+            return jsonify({'error': 'missing parameters'}), 400
+
+        allowed, _ = check_map_access(owner_id, map_id, uid)
+        if not allowed:
+            return jsonify({'error': 'access denied'}), 403
+        has_write, _ = check_map_access(owner_id, map_id, uid, require_write=True)
+
+        doc_ref = pdfs_collection(owner_id, map_id).document(pdf_id)
+        doc = doc_ref.get()
+        meta = (doc.to_dict() or {}) if doc.exists else {}
+        if not doc.exists or not can_see_pdf(meta, uid):
+            return jsonify({'error': 'PDF not found'}), 404
+        if not can_delete_pdf(meta, uid, owner_id, has_write):
+            return jsonify({'error': 'you cannot delete this PDF'}), 403
+
+        try:
+            # Remove metadata first so the file disappears from lists immediately.
+            doc_ref.delete()
+            for chunk in doc_ref.collection('chunks').list_documents():
+                chunk.delete()
+            return jsonify({'status': 'ok'}), 200
+        except Exception as e:
+            app.logger.exception("api_delete_pdf error: %s", e)
+            return jsonify({'error': 'failed to delete PDF'}), 500
 
 
     # -------------------------

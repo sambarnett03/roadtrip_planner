@@ -795,6 +795,10 @@ def create_app():
         return app.db.collection("users").document(owner_id) \
             .collection("maps").document(map_id).collection("pdfs")
 
+    def read_pdf_bytes(doc_ref):
+        chunk_docs = sorted(doc_ref.collection('chunks').stream(), key=lambda d: int(d.id))
+        return b''.join((c.to_dict() or {}).get('data', b'') for c in chunk_docs)
+
     def can_see_pdf(meta, uid):
         return meta.get('visibility') == 'shared' or meta.get('uploaded_by') == uid
 
@@ -926,8 +930,7 @@ def create_app():
             return "PDF not found", 404
 
         try:
-            chunk_docs = sorted(doc_ref.collection('chunks').stream(), key=lambda d: int(d.id))
-            data = b''.join((c.to_dict() or {}).get('data', b'') for c in chunk_docs)
+            data = read_pdf_bytes(doc_ref)
         except Exception as e:
             app.logger.exception("api_get_pdf error: %s", e)
             return "Failed to load PDF", 500
@@ -976,12 +979,70 @@ def create_app():
     # Firestore-based Roadtrips
     # -------------------------
 
+    def build_offline_bundle(owner_id, map_id, uid):
+        """Snapshot of the sidebar's server-side data, embedded in downloaded maps.
+
+        A downloaded map can't call the notes/PDF APIs, so it carries the shared
+        note (decrypted) and every PDF this user can see, as of download time.
+        """
+        ref = app.db.collection('users').document(owner_id).collection('maps') \
+            .document(map_id).collection('planning').document('notes')
+        try:
+            text, _, _ = NoteEncryption(os.environ.get('NOTES_ENCRYPTION_KEY')).read(app.db, ref)
+            notes = {'text': text}
+        except Exception:
+            # Do not log plaintext, tokens, keys, or exception details.
+            app.logger.error('Could not include shared notes in map download.')
+            notes = {'error': 'Shared notes could not be included in this download.'}
+
+        pdfs = []
+        for doc in pdfs_collection(owner_id, map_id).stream():
+            meta = doc.to_dict() or {}
+            if not can_see_pdf(meta, uid):
+                continue
+            data = read_pdf_bytes(doc.reference)
+            uploaded_at = meta.get('uploaded_at')
+            pdfs.append({
+                'id': doc.id,
+                'display_name': meta.get('display_name'),
+                'filename': meta.get('filename') or 'document.pdf',
+                'size': len(data),
+                'visibility': meta.get('visibility'),
+                'uploaded_at': uploaded_at.isoformat() if uploaded_at else None,
+                'data': base64.b64encode(data).decode('ascii'),
+            })
+        pdfs.sort(key=lambda p: p['uploaded_at'] or '', reverse=True)
+
+        return {
+            'saved_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'notes': notes,
+            'pdfs': pdfs,
+        }
+
     @app.route('/download_current_map')
+    @login_required
     def download_current_map():
         path = session.get('last_map_path')
-        if path and os.path.exists(path):
-            return send_file(path, as_attachment=True, download_name="my_roadtrip.html")
-        return "File expired or not found", 404
+        if not path or not os.path.exists(path):
+            return "File expired or not found", 404
+
+        uid = session.get('uid')
+        map_id = session.get('current_map_id')
+        owner_id = session.get('current_map_owner') or uid
+        allowed, _ = check_map_access(owner_id, map_id, uid) if map_id else (False, None)
+        if not allowed:
+            return "Access denied", 403
+
+        try:
+            bundle = build_offline_bundle(owner_id, map_id, uid)
+        except Exception as e:
+            app.logger.exception("download_current_map: failed to collect PDFs: %s", e)
+            return "Could not prepare the download. Please try again.", 503
+
+        with open(path, encoding='utf-8') as f:
+            html = insert_offline_bundle(f.read(), bundle)
+        return send_file(io.BytesIO(html.encode('utf-8')), mimetype='text/html',
+                         as_attachment=True, download_name="my_roadtrip.html")
 
 
     @app.route('/delete_map', methods=['POST'])

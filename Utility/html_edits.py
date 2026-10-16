@@ -61,6 +61,23 @@ def insert_buttons(html_path, buttons):
             file.write(updated_content)
 
 
+def insert_offline_bundle(html, bundle):
+    """
+    Embeds a snapshot of the shared notes and PDFs (see build_offline_bundle in
+    app.py) so a downloaded map's sidebar works without the server.
+    Returns the updated HTML string.
+    """
+    # Escape characters that could end the <script> early or break JS parsing.
+    payload = (json.dumps(bundle, ensure_ascii=False)
+               .replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+               .replace('\u2028', '\\u2028').replace('\u2029', '\\u2029'))
+    script = f'<script>window.ROADTRIP_OFFLINE = {payload};</script>'
+    # In <head> so it is defined before the sidebar script runs.
+    if '</head>' in html:
+        return html.replace('</head>', script + '\n</head>', 1)
+    return script + '\n' + html
+
+
 def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
     """
     Injects a sidebar for notes into the HTML.
@@ -264,25 +281,35 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
         sidebar.style.width = "0";
       }}
 
-      // Initialize Firebase
-      const firebaseConfig = {config_json};
-
-      if (!firebase.apps.length) {{
-          firebase.initializeApp(firebaseConfig);
-      }}
-      const db = firebase.firestore();
-      const auth = firebase.auth();
-
       // IDs injected from Python
       const ownerId = "{owner_id}";
       const mapId = "{map_id}";
-      
-      // Reference to the shared note
-      const docRef = db.collection("users").doc(ownerId)
-                       .collection("maps").doc(mapId)
-                       .collection("planning").doc("notes");
 
-      const notes = createEncryptedNotes({{ auth, docRef, editableDiv, toggle, ownerId, mapId }});
+      // Set in downloaded maps (insert_offline_bundle): a snapshot of the shared
+      // notes and PDFs, since a downloaded copy can't reach the server.
+      const offline = window.ROADTRIP_OFFLINE || null;
+
+      let auth = null;
+      let docRef = null;
+      if (!offline) {{
+        // Initialize Firebase
+        const firebaseConfig = {config_json};
+
+        if (!firebase.apps.length) {{
+            firebase.initializeApp(firebaseConfig);
+        }}
+        const db = firebase.firestore();
+        auth = firebase.auth();
+
+        // Reference to the shared note
+        docRef = db.collection("users").doc(ownerId)
+                   .collection("maps").doc(mapId)
+                   .collection("planning").doc("notes");
+      }}
+
+      const notes = createEncryptedNotes({{ auth, docRef, editableDiv, toggle, ownerId, mapId,
+                                            offlineNotes: offline && offline.notes,
+                                            savedAt: offline && offline.saved_at }});
       function loadShared() {{ notes.loadShared(); }}
       function loadPersonal() {{ notes.loadPersonal(); }}
 
@@ -314,6 +341,17 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
         return (bytes / (1024 * 1024)).toFixed(1) + " MB";
       }}
 
+      // Downloaded copies open embedded PDFs from blob URLs (browsers block
+      // opening data: URLs in a new tab). Built on first use and reused.
+      const offlinePdfUrls = {{}};
+      function offlinePdfUrl(pdf) {{
+        if (!offlinePdfUrls[pdf.id]) {{
+          const bytes = Uint8Array.from(atob(pdf.data), c => c.charCodeAt(0));
+          offlinePdfUrls[pdf.id] = URL.createObjectURL(new Blob([bytes], {{ type: "application/pdf" }}));
+        }}
+        return offlinePdfUrls[pdf.id];
+      }}
+
       function pdfMessage(text) {{
         pdfList.innerHTML = "";
         const li = document.createElement("li");
@@ -333,7 +371,8 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
 
           const view = document.createElement("a");
           view.className = "pdf-name";
-          view.href = "/api/pdfs/" + encodeURIComponent(pdf.id) + "?" + pdfQuery();
+          view.href = offline ? offlinePdfUrl(pdf)
+                              : "/api/pdfs/" + encodeURIComponent(pdf.id) + "?" + pdfQuery();
           view.target = "_blank";
           view.rel = "noopener";
           view.textContent = pdf.display_name;
@@ -345,7 +384,12 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
           meta.appendChild(document.createTextNode(formatSize(pdf.size)));
 
           const download = document.createElement("a");
-          download.href = "/api/pdfs/" + encodeURIComponent(pdf.id) + "?" + pdfQuery({{ download: "1" }});
+          if (offline) {{
+            download.href = offlinePdfUrl(pdf);
+            download.download = pdf.filename;
+          }} else {{
+            download.href = "/api/pdfs/" + encodeURIComponent(pdf.id) + "?" + pdfQuery({{ download: "1" }});
+          }}
           download.textContent = "Download";
           meta.appendChild(download);
 
@@ -365,6 +409,12 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
       async function loadPdfs() {{
         const visibility = pdfVisibility();
         pdfHeading.textContent = visibility === "shared" ? "Shared files" : "My private files";
+        if (offline) {{
+          // Downloaded copy: list the PDFs saved into the file; no uploads or deletes.
+          pdfUploadForm.style.display = "none";
+          renderPdfs((offline.pdfs || []).filter(pdf => pdf.visibility === visibility));
+          return;
+        }}
         pdfMessage("Loading…");
         try {{
           const resp = await fetch("/api/pdfs?" + pdfQuery({{ visibility: visibility }}));

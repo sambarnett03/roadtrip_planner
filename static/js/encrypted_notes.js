@@ -1,5 +1,8 @@
 // Embedded into generated maps so personal notes still work in downloaded HTML.
-function createEncryptedNotes({ auth, docRef, editableDiv, toggle, ownerId, mapId }) {
+// offlineNotes/savedAt are set in downloaded maps: a read-only snapshot of the
+// shared note ({text} or {error}) taken when the map was downloaded.
+function createEncryptedNotes({ auth, docRef, editableDiv, toggle, ownerId, mapId,
+                                offlineNotes = null, savedAt = null }) {
   const status = document.createElement('div');
   status.style.cssText = 'margin:0 20px 12px;font:12px Arial,sans-serif;white-space:pre-wrap';
   status.setAttribute('role', 'status');
@@ -118,7 +121,22 @@ function createEncryptedNotes({ auth, docRef, editableDiv, toggle, ownerId, mapI
     }
   }
 
+  function loadSavedCopy() {
+    stop();
+    retry.hidden = true;
+    if (offlineNotes.error) {
+      editableDiv.innerHTML = '';
+      status.textContent = offlineNotes.error;
+      return;
+    }
+    editableDiv.innerHTML = offlineNotes.text || '';
+    const when = savedAt ? new Date(savedAt).toLocaleString() : 'when this map was downloaded';
+    status.textContent = 'Copy of the shared notes saved ' + when +
+                         '. Open the map online to edit them.';
+  }
+
   function loadShared() {
+    if (offlineNotes) return loadSavedCopy();
     if (dirty || saving) return;
     stop();
     revision = null;
@@ -158,7 +176,8 @@ function createEncryptedNotes({ auth, docRef, editableDiv, toggle, ownerId, mapI
     if (dirty) save();
     else loadShared();
   };
-  auth.onAuthStateChanged(() => {
+  // Downloaded copies have no Firebase sign-in (auth is null).
+  if (auth) auth.onAuthStateChanged(() => {
     if (!toggle.checked) return;
     if (dirty || saving) {
       blocked = true;

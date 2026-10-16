@@ -7,3 +7,4 @@ Werkzeug
 polyline
 dotenv
 datetime
+cryptography>=46.0.5

@@ -1,6 +1,7 @@
 # Utility/html_edits.py
 import os
 import json
+from pathlib import Path
 
 def insert_buttons(html_path, buttons):
     """
@@ -81,6 +82,8 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
 
     # Serialize config to JSON for injection
     config_json = json.dumps(firebase_config)
+    notes_script = (Path(__file__).resolve().parent.parent /
+                    "static/js/encrypted_notes.js").read_text(encoding="utf-8")
 
     sidebar_code = f"""
     <style>
@@ -247,6 +250,7 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
+    <script>{notes_script}</script>
     <script>
       const sidebar = document.getElementById("mySidebar");
       const editableDiv = document.getElementById("sharedContent");
@@ -278,88 +282,9 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
                        .collection("maps").doc(mapId)
                        .collection("planning").doc("notes");
 
-      let unsubscribe = null;
-      let currentUser = null; 
-
-      // --- AUTH LISTENER ---
-      // This waits for the browser to verify the user session.
-      // Without this, Firestore requests fail immediately on page load.
-      auth.onAuthStateChanged((user) => {{
-        if (user) {{
-          console.log("Sidebar: User signed in:", user.uid);
-          currentUser = user;
-          
-          // If we are already in shared mode, trigger load now that we have a user
-          if (toggle.checked) {{
-             loadShared(); 
-          }}
-        }} else {{
-          console.log("Sidebar: User currently signed out.");
-          currentUser = null;
-          if (toggle.checked) {{
-             editableDiv.innerHTML = "Please sign in to view shared notes.";
-          }}
-        }}
-      }});
-
-      function loadShared() {{
-        // Lock editing while loading
-        editableDiv.contentEditable = "false";
-        
-        // If auth isn't ready yet, show waiting message.
-        // onAuthStateChanged will call this function again once ready.
-        if (!currentUser) {{
-            editableDiv.innerHTML = "Verifying access...";
-            return;
-        }}
-
-        // 1. Clear old listener if exists
-        if (unsubscribe) unsubscribe();
-
-        // 2. Start listening to the document
-        unsubscribe = docRef.onSnapshot((doc) => {{
-          const dbText = (doc.exists && doc.data().text) ? doc.data().text : "";
-
-          // Only update the HTML if the user isn't currently typing
-          if (document.activeElement !== editableDiv) {{
-            editableDiv.innerHTML = dbText;
-          }}
-          
-          // 3. Unlock editing once data is received
-          if (editableDiv.contentEditable === "false") {{
-             editableDiv.contentEditable = "true";
-             
-             // Attach save handler now that it is safe
-             editableDiv.oninput = () => {{
-                docRef.set({{ text: editableDiv.innerHTML }}, {{ merge: true }})
-                .catch((error) => {{
-                    console.error("Error saving note:", error);
-                }});
-             }};
-          }}
-        }}, (error) => {{
-            console.error("Error loading shared notes:", error);
-            if (error.code === 'permission-denied') {{
-                editableDiv.innerHTML = "Access Denied: You are not listed as a collaborator.";
-            }} else {{
-                editableDiv.innerHTML = "Error loading notes: " + error.message;
-            }}
-        }});
-      }}
-
-      function loadPersonal() {{
-        // Stop listening to Firestore updates
-        if (unsubscribe) unsubscribe(); 
-
-        const saved = localStorage.getItem("personalText_" + mapId);
-        editableDiv.innerHTML = saved || "";
-        
-        editableDiv.contentEditable = "true";
-        
-        editableDiv.oninput = () => {{
-          localStorage.setItem("personalText_" + mapId, editableDiv.innerHTML);
-        }};
-      }}
+      const notes = createEncryptedNotes({{ auth, docRef, editableDiv, toggle, ownerId, mapId }});
+      function loadShared() {{ notes.loadShared(); }}
+      function loadPersonal() {{ notes.loadPersonal(); }}
 
       // --- PDF ATTACHMENTS ---
       // Shared mode lists PDFs everyone on the map can see; personal mode

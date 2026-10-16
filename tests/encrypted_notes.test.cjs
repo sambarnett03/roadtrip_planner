@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../static/js/encrypted_notes.js'), 'utf8');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function setup() {
+function setup(extra = {}) {
   const elements = [];
   const storage = new Map();
   const timers = new Map();
@@ -49,7 +49,7 @@ function setup() {
                  onAuthStateChanged: callback => { authChange = callback; } };
   const docRef = { onSnapshot: callback => { snapshot = callback; return () => {}; } };
   const controller = context.createEncryptedNotes({ auth, docRef, editableDiv, toggle,
-                                                  ownerId: 'owner', mapId: 'trip' });
+                                                  ownerId: 'owner', mapId: 'trip', ...extra });
   return { controller, editableDiv, toggle, calls, state, storage, auth,
            status: elements[0], retry: elements[1],
            setHandler: callback => { handler = callback; },
@@ -199,4 +199,35 @@ test('a delayed live read cannot revert a save completed while the read was pend
   finishRead();
   await flush();
   assert.equal(s.editableDiv.innerHTML, 'New saved text');
+});
+
+test('downloaded maps show the saved shared note read-only without contacting the server', async () => {
+  const s = setup({ auth: null, docRef: null, offlineNotes: { text: '<b>Saved copy</b>' },
+                    savedAt: '2026-10-17T10:00:00+00:00' });
+  await load(s);
+  assert.equal(s.editableDiv.innerHTML, '<b>Saved copy</b>');
+  assert.equal(s.editableDiv.contentEditable, 'false');
+  assert.equal(s.editableDiv.oninput, null);
+  assert.match(s.status.textContent, /Copy of the shared notes saved .*Open the map online/);
+  assert.equal(s.calls.length, 0);
+  // Personal notes still work in the downloaded file.
+  s.toggle.checked = false;
+  s.controller.loadPersonal();
+  assert.equal(s.editableDiv.contentEditable, 'true');
+  type(s, 'Offline personal note');
+  assert.equal(s.storage.get('personalText_trip'), 'Offline personal note');
+  s.toggle.checked = true;
+  await load(s);
+  assert.equal(s.editableDiv.innerHTML, '<b>Saved copy</b>');
+  assert.equal(s.calls.length, 0);
+});
+
+test('downloaded maps explain when the shared notes could not be included', async () => {
+  const s = setup({ auth: null, docRef: null,
+                    offlineNotes: { error: 'Shared notes could not be included in this download.' } });
+  await load(s);
+  assert.equal(s.editableDiv.innerHTML, '');
+  assert.equal(s.editableDiv.contentEditable, 'false');
+  assert.equal(s.status.textContent, 'Shared notes could not be included in this download.');
+  assert.equal(s.calls.length, 0);
 });

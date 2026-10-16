@@ -26,13 +26,18 @@ function setup({ included = false, canEdit = true, offline = false } = {}) {
   const content = new Element();
   content.className = 'leaflet-popup-content';
   popup.append(content);
+  // folium passes Leaflet a content element; popup.update() rebuilds
+  // .leaflet-popup-content from it, discarding anything appended alongside.
+  const foliumContent = new Element();
+  content.append(foliumContent);
   const events = {};
   let open = false;
   const marker = {
     on(event, callback) { events[event] = callback; },
     openPopup() { if (!open) { open = true; events.popupopen(); } },
     closePopup() { open = false; events.popupclose(); },
-    getPopup: () => ({ getElement: () => popup, update() {} })
+    getPopup: () => ({ getElement: () => popup, getContent: () => foliumContent,
+                       update() { content.children = [foliumContent]; } })
   };
   const timers = new Map();
   let nextTimer = 0;

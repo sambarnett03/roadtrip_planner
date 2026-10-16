@@ -55,7 +55,12 @@ function attachDriveControls(map, stops, context) {
       if (offline) status.textContent = 'Open this map online to change the drive.';
       else if (!context.can_edit) status.textContent = 'Only the owner and editors can change the drive.';
       control.append(label, status);
-      popup.querySelector('.leaflet-popup-content').append(control);
+      // Leaflet's popup.update() rebuilds .leaflet-popup-content from the popup's
+      // content element, so add the control inside that element to keep it.
+      const content = marker.getPopup().getContent?.();
+      const host = content && typeof content.append === 'function'
+        ? content : popup.querySelector('.leaflet-popup-content');
+      host.append(control);
       L.DomEvent.disableClickPropagation(control);
 
       checkbox.addEventListener('change', async () => {

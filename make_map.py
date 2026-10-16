@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from flask import session
 
 
-def generate_map(map_id, owner_id, rows):
+def generate_map(map_id, owner_id, rows, can_edit=True):
     
     load_dotenv()
     
@@ -34,16 +34,20 @@ def generate_map(map_id, owner_id, rows):
         gmaps_key = os.environ.get('GOOGLE_MAPS_KEY', '')
         gmaps = googlemaps.Client(key=gmaps_key)
 
+        stop_doc_ids = {str(row["id"]): row.get("_doc_id") for row in rows}
+        markers = []
+
         # Add pins
         if driving_stops.places != {}:
-            add_pin(m, driving_stops)
+            markers.extend(add_pin(m, driving_stops, stop_doc_ids))
 
         if other_stops.places != {}:
-            add_pin(m, other_stops)
+            markers.extend(add_pin(m, other_stops, stop_doc_ids))
 
         # Drives
         gmaps_ids = driving_stops.get_all_gmapsids()
         plot_drives(m, driving_stops, gmaps_ids, driving_stops.get_all_coords())
+        add_drive_controls(m, markers, map_id, owner_id, can_edit=can_edit)
 
     tf = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_", suffix=".html", delete=False)
     tf_no_buttons = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_no_buttons_", suffix=".html", delete=False)

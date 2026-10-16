@@ -1054,14 +1054,15 @@ def create_app():
                     .order_by("id") \
                     .stream()
 
-            rows = [doc.to_dict() for doc in stops]
+            rows = [dict(doc.to_dict() or {}, _doc_id=doc.id) for doc in stops]
 
             # remember which map is active and where it is owned
             session['current_map_id'] = map_id
             session['current_map_owner'] = owner_id
 
             # 1. Generate the basic Map HTML
-            tf = generate_map(map_id, owner_id, rows)
+            can_edit, _ = check_map_access(owner_id, map_id, uid, require_write=True)
+            tf = generate_map(map_id, owner_id, rows, can_edit=can_edit)
 
             try:
                 return send_file(tf.name, mimetype='text/html')
@@ -1097,7 +1098,7 @@ def create_app():
                     .order_by("id") \
                     .stream()
 
-            rows = [doc.to_dict() for doc in stops]
+            rows = [dict(doc.to_dict() or {}, _doc_id=doc.id) for doc in stops]
 
             # Keep session small: remember which map is active
             session['current_map_id'] = map_id

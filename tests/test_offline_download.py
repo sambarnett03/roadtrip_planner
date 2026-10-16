@@ -141,8 +141,24 @@ class OfflineDownloadTests(unittest.TestCase):
         # These files are embedded in <script> tags; a literal "</script" inside
         # one ends it early in the browser (Node-based JS tests can't catch that).
         root = Path(__file__).resolve().parent.parent / 'static' / 'js'
-        for name in ('encrypted_notes.js', 'map_download.js', 'map_drive_controls.js'):
+        for name in ('encrypted_notes.js', 'map_download.js', 'map_drive_controls.js', 'offline_basemap.js'):
             self.assertNotIn('</script', (root / name).read_text(encoding='utf-8').lower(), name)
+
+    def test_downloaded_copies_show_pdfs_inside_the_page(self):
+        # Opening a downloaded file's blob: URL in a new tab can give a blank tab,
+        # so offline PDF links open an in-page viewer instead.
+        html = self.map_path.read_text()
+        self.assertIn('function showOfflinePdf(pdf)', html)
+        self.assertIn('view.onclick = (event) => { event.preventDefault(); showOfflinePdf(pdf); };', html)
+
+    def test_offline_basemap_runs_after_the_tile_layer_it_replaces(self):
+        import folium
+        from Utility.plotting_functions import add_offline_basemap
+        m = folium.Map(location=[46.5, 7.0])
+        add_offline_basemap(m)
+        html = m.get_root().render()
+        self.assertLess(html.index('tile.openstreetmap.org/{z}'), html.index('useOfflineBasemap(map_'))
+        self.assertEqual(html.count('integrity: \'sha384-'), 3)
 
     def test_bundle_escaping_round_trips_unusual_text(self):
         text = 'a </script> b <!-- c --> &   d   é 🏕️'

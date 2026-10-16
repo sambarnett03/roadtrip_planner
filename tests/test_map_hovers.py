@@ -56,6 +56,8 @@ class MapHoverTests(unittest.TestCase):
                     self.assertIn('doc_id: "firestore-stop"', html)
                     self.assertIn('"can_edit": false', html)
                     self.assertIn("window.location.protocol === 'file:'", html)
+                    # Downloaded copies swap OSM's tiles (blocked from file://) for OpenFreeMap.
+                    self.assertIn('useOfflineBasemap(map_', html)
             finally:
                 online_path.unlink()
                 downloaded_path.unlink()

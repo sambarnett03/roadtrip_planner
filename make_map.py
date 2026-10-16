@@ -49,6 +49,9 @@ def generate_map(map_id, owner_id, rows, can_edit=True):
         plot_drives(m, driving_stops, gmaps_ids, driving_stops.get_all_coords())
         add_drive_controls(m, markers, map_id, owner_id, can_edit=can_edit)
 
+    # Downloaded copies can't use OpenStreetMap's tiles; this swaps them when opened from disk.
+    add_offline_basemap(m)
+
     tf = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_", suffix=".html", delete=False)
     tf_no_buttons = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_no_buttons_", suffix=".html", delete=False)
     

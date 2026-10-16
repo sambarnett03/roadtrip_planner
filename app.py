@@ -5,6 +5,7 @@ import json
 import base64
 import datetime
 from functools import wraps
+import click
 import csv
 import datetime
 
@@ -12,6 +13,8 @@ from Utility.plotting_functions import *
 from Utility.html_edits import *
 from Utility.classes import Place, RoadTrip
 from Utility.utility_functions import *
+from Utility.note_encryption import NoteEncryption, NoteConflict
+from cryptography.fernet import InvalidToken
 
 from dotenv import load_dotenv
 from flask import (
@@ -36,7 +39,9 @@ load_dotenv(dotenv_path=env_path)
 
 def create_app():
     app = Flask(__name__)
-    app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret')
+    app.secret_key = os.environ.get('FLASK_SECRET_KEY')
+    if not app.secret_key or app.secret_key == 'dev-secret':
+        raise RuntimeError('Set a persistent, random FLASK_SECRET_KEY before starting the app.')
 
     # placeholder for Firestore client
     app.db = None
@@ -484,6 +489,101 @@ def create_app():
 
         # read allowed (role present), or write allowed (role == editor)
         return True, map_doc
+
+
+    @app.route('/api/notes', methods=['GET', 'POST'])
+    def api_notes():
+        # Verify Firebase directly: note access does not depend on a cookie or
+        # Flask's development session secret.
+        authorization = request.headers.get('Authorization', '')
+        if not authorization.startswith('Bearer '):
+            return jsonify({'error': 'Please sign in to access notes.'}), 401
+        try:
+            decoded = fb_auth.verify_id_token(authorization[7:], check_revoked=True)
+            uid = decoded['uid']
+        except Exception:
+            return jsonify({'error': 'Please sign in again to access notes.'}), 401
+
+        source = request.args if request.method == 'GET' else request.get_json(silent=True)
+        if source is None or not hasattr(source, 'get'):
+            return jsonify({'error': 'Expected a JSON object.'}), 400
+        owner_id = source.get('owner_id') or uid
+        map_id = source.get('map_id')
+        if any(not isinstance(value, str) or not value or '/' in value
+               for value in (owner_id, map_id)):
+            return jsonify({'error': 'Missing or invalid map IDs.'}), 400
+        writing = request.method == 'POST'
+        allowed, _ = check_map_access(owner_id, map_id, uid, require_write=writing)
+        if not allowed:
+            return jsonify({'error': 'Access denied.'}), 403
+
+        try:
+            encryption = NoteEncryption(os.environ.get('NOTES_ENCRYPTION_KEY'))
+            ref = app.db.collection('users').document(owner_id).collection('maps') \
+                .document(map_id).collection('planning').document('notes')
+            if writing:
+                text, revision = source.get('text'), source.get('revision')
+                if not isinstance(text, str) or not isinstance(revision, str):
+                    return jsonify({'error': 'Text and revision are required.'}), 400
+                # Leave room for encryption/base64 expansion within Firestore's 1 MiB limit.
+                if len(text.encode('utf-8')) > 500_000:
+                    return jsonify({'error': 'Note is too large (maximum 500 KB).'}), 413
+                revision = encryption.save(app.db, ref, text, revision)
+                response = jsonify({'revision': revision})
+            else:
+                text, revision, _ = encryption.read(app.db, ref)
+                can_edit, _ = check_map_access(owner_id, map_id, uid, require_write=True)
+                response = jsonify({'text': text, 'revision': revision, 'can_edit': can_edit})
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+        except NoteConflict:
+            return jsonify({'error': 'Another collaborator changed this note. Copy your edits, '
+                                     'then reload before saving.'}), 409
+        except (InvalidToken, ValueError):
+            # Do not log plaintext, tokens, keys, or exception details.
+            app.logger.error('Note encryption unavailable; stored note left untouched.')
+            return jsonify({'error': 'Notes could not be decrypted. Your saved note is unchanged. '
+                                     'Ask the administrator to check the encryption key.'}), 503
+        except Exception:
+            app.logger.error('Note storage request failed.')
+            return jsonify({'error': 'Could not load or save notes. Please try again.'}), 503
+
+    @app.cli.command('encrypt-notes')
+    def encrypt_notes():
+        """Encrypt existing sidebar notes, including maps nobody has opened recently."""
+        try:
+            encryption = NoteEncryption(os.environ.get('NOTES_ENCRYPTION_KEY'))
+        except ValueError as error:
+            raise click.ClickException('Set a valid NOTES_ENCRYPTION_KEY first.') from error
+        migrated = 0
+        checked = 0
+        references = []
+        # Collection-group queries also include notes under deleted parent maps.
+        for doc in app.db.collection_group('planning').stream():
+            parts = doc.reference.path.split('/')
+            if len(parts) != 6 or parts[0] != 'users' or parts[2] != 'maps' or parts[5] != 'notes':
+                continue
+            # Validate encrypted notes before migrating anything, catching a
+            # mistaken replacement key before encrypting more notes with it.
+            try:
+                encryption.decrypt((doc.to_dict() or {}).get('text', ''), doc.reference.path)
+            except InvalidToken as error:
+                raise click.ClickException(
+                    f'Could not decrypt {doc.reference.path}. Check the encryption key. '
+                    'No notes were migrated by this run.'
+                ) from error
+            references.append(doc.reference)
+        for ref in references:
+            try:
+                _, _, changed = encryption.read(app.db, ref)
+            except Exception as error:
+                raise click.ClickException(
+                    f'Could not encrypt {ref.path}; stopped without changing that note. '
+                    'Check the key and database access, then rerun. Completed notes are safe.'
+                ) from error
+            migrated += int(changed)
+            checked += 1
+        click.echo(f'Checked {checked} notes; encrypted {migrated} legacy notes.')
 
 
     @app.route('/api/stops/update', methods=['POST'])

@@ -499,7 +499,9 @@ def create_app():
         if not authorization.startswith('Bearer '):
             return jsonify({'error': 'Please sign in to access notes.'}), 401
         try:
-            decoded = fb_auth.verify_id_token(authorization[7:], check_revoked=True)
+            # Same tolerance as /session_login, for server clock drift.
+            decoded = fb_auth.verify_id_token(authorization[7:], check_revoked=True,
+                                              clock_skew_seconds=60)
             uid = decoded['uid']
         except Exception:
             return jsonify({'error': 'Please sign in again to access notes.'}), 401

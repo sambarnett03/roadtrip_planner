@@ -146,3 +146,19 @@ def add_drive_controls(m, markers, map_id, owner_id, can_edit=True):
         {% endmacro %}
     """)
     m.add_child(controls)
+
+
+def add_offline_basemap(m):
+    """When a downloaded map is opened from disk, swap the OpenStreetMap tiles
+    (blocked there: no Referer) for OpenFreeMap. Online maps are unaffected."""
+    basemap = MacroElement()
+    basemap._name = "OfflineBasemap"
+    basemap.script = (Path(__file__).resolve().parent.parent /
+                      "static/js/offline_basemap.js").read_text(encoding="utf-8")
+    basemap._template = Template("""
+        {% macro script(this, kwargs) %}
+        {{ this.script | safe }}
+        useOfflineBasemap({{ this._parent.get_name() }});
+        {% endmacro %}
+    """)
+    m.add_child(basemap)

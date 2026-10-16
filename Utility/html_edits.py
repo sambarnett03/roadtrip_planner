@@ -359,6 +359,54 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
         return offlinePdfUrls[pdf.id];
       }}
 
+      // Downloaded copies show PDFs in a viewer inside the page: browsers can
+      // refuse to open a downloaded file's blob: URLs in a new tab (blank tab).
+      let pdfViewer = null;
+      let pdfViewerTitle = null;
+      let pdfViewerDownload = null;
+      let pdfViewerFrame = null;
+
+      function closeOfflinePdf() {{
+        if (!pdfViewer) return;
+        pdfViewer.style.display = "none";
+        pdfViewerFrame.src = "about:blank";
+      }}
+
+      function showOfflinePdf(pdf) {{
+        if (!pdfViewer) {{
+          pdfViewer = document.createElement("div");
+          pdfViewer.id = "pdfViewer";
+          pdfViewer.style.cssText = "position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;" +
+            "padding:3vh 3vw;box-sizing:border-box;background:rgba(0,0,0,0.6);font-family:Arial,sans-serif";
+          const bar = document.createElement("div");
+          bar.style.cssText = "display:flex;align-items:center;gap:16px;background:white;" +
+            "padding:10px 14px;border-radius:8px 8px 0 0";
+          pdfViewerTitle = document.createElement("strong");
+          pdfViewerTitle.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+          pdfViewerDownload = document.createElement("a");
+          pdfViewerDownload.textContent = "Download";
+          const close = document.createElement("button");
+          close.type = "button";
+          close.textContent = "Close";
+          close.onclick = closeOfflinePdf;
+          bar.append(pdfViewerTitle, pdfViewerDownload, close);
+          pdfViewerFrame = document.createElement("iframe");
+          pdfViewerFrame.title = "PDF viewer";
+          pdfViewerFrame.style.cssText = "flex:1;width:100%;border:0;background:white;border-radius:0 0 8px 8px";
+          pdfViewer.append(bar, pdfViewerFrame);
+          // Clicking the dimmed background or pressing Escape also closes it.
+          pdfViewer.onclick = (event) => {{ if (event.target === pdfViewer) closeOfflinePdf(); }};
+          document.addEventListener("keydown", (event) => {{ if (event.key === "Escape") closeOfflinePdf(); }});
+          document.body.appendChild(pdfViewer);
+        }}
+        const url = offlinePdfUrl(pdf);
+        pdfViewerTitle.textContent = pdf.display_name;
+        pdfViewerDownload.href = url;
+        pdfViewerDownload.download = pdf.filename;
+        pdfViewerFrame.src = url;
+        pdfViewer.style.display = "flex";
+      }}
+
       function pdfMessage(text) {{
         pdfList.innerHTML = "";
         const li = document.createElement("li");
@@ -380,8 +428,12 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
           view.className = "pdf-name";
           view.href = offline ? offlinePdfUrl(pdf)
                               : "/api/pdfs/" + encodeURIComponent(pdf.id) + "?" + pdfQuery();
-          view.target = "_blank";
-          view.rel = "noopener";
+          if (offline) {{
+            view.onclick = (event) => {{ event.preventDefault(); showOfflinePdf(pdf); }};
+          }} else {{
+            view.target = "_blank";
+            view.rel = "noopener";
+          }}
           view.textContent = pdf.display_name;
           view.title = pdf.filename;
           li.appendChild(view);

@@ -30,7 +30,7 @@ function setup(extra = {}) {
       return element;
     } },
     window: { addEventListener: (_, callback) => { beforeUnload = callback; } },
-    localStorage: { getItem: key => storage.get(key) || null,
+    localStorage: { getItem: key => (storage.has(key) ? storage.get(key) : null),
                     setItem: (key, value) => storage.set(key, value) },
     URLSearchParams,
     fetch: async (_, options) => {
@@ -215,7 +215,9 @@ test('downloaded maps show the saved shared note read-only without contacting th
   s.controller.loadPersonal();
   assert.equal(s.editableDiv.contentEditable, 'true');
   type(s, 'Offline personal note');
-  assert.equal(s.storage.get('personalText_trip'), 'Offline personal note');
+  assert.equal(s.storage.get('personalText_trip_download_2026-10-17T10:00:00+00:00'),
+               'Offline personal note');
+  assert.equal(s.storage.has('personalText_trip'), false);
   s.toggle.checked = true;
   await load(s);
   assert.equal(s.editableDiv.innerHTML, '<b>Saved copy</b>');
@@ -230,4 +232,28 @@ test('downloaded maps explain when the shared notes could not be included', asyn
   assert.equal(s.editableDiv.contentEditable, 'false');
   assert.equal(s.status.textContent, 'Shared notes could not be included in this download.');
   assert.equal(s.calls.length, 0);
+});
+
+test('downloaded maps start from the personal notes saved into the file', () => {
+  const s = setup({ auth: null, docRef: null, offlineNotes: { text: '' },
+                    offlinePersonal: '<i>My packing list</i>', savedAt: '2026-10-17T10:00:00+00:00' });
+  s.toggle.checked = false;
+  s.controller.loadPersonal();
+  assert.equal(s.editableDiv.innerHTML, '<i>My packing list</i>');
+  // Edits made in the downloaded copy win when it is reopened.
+  type(s, '<i>My packing list</i> + boots');
+  s.controller.loadPersonal();
+  assert.equal(s.editableDiv.innerHTML, '<i>My packing list</i> + boots');
+  // An empty saved edit is kept rather than falling back to the snapshot.
+  type(s, '');
+  s.controller.loadPersonal();
+  assert.equal(s.editableDiv.innerHTML, '');
+});
+
+test('online maps keep using the existing personal notes key', () => {
+  const s = setup();
+  s.storage.set('personalText_trip', 'Typed online');
+  s.toggle.checked = false;
+  s.controller.loadPersonal();
+  assert.equal(s.editableDiv.innerHTML, 'Typed online');
 });

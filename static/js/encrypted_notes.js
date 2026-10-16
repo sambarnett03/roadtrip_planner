@@ -1,8 +1,12 @@
 // Embedded into generated maps so personal notes still work in downloaded HTML.
-// offlineNotes/savedAt are set in downloaded maps: a read-only snapshot of the
-// shared note ({text} or {error}) taken when the map was downloaded.
+// offlineNotes/offlinePersonal/savedAt are set in downloaded maps: a read-only
+// snapshot of the shared note ({text} or {error}) and the personal note, taken
+// when the map was downloaded.
 function createEncryptedNotes({ auth, docRef, editableDiv, toggle, ownerId, mapId,
-                                offlineNotes = null, savedAt = null }) {
+                                offlineNotes = null, offlinePersonal = null, savedAt = null }) {
+  // A downloaded copy keeps personal edits per download, so opening a newer
+  // download isn't hidden by edits made in an older one.
+  const personalKey = 'personalText_' + mapId + (offlineNotes ? '_download_' + savedAt : '');
   const status = document.createElement('div');
   status.style.cssText = 'margin:0 20px 12px;font:12px Arial,sans-serif;white-space:pre-wrap';
   status.setAttribute('role', 'status');
@@ -165,10 +169,11 @@ function createEncryptedNotes({ auth, docRef, editableDiv, toggle, ownerId, mapI
     stop();
     status.textContent = '';
     retry.hidden = true;
-    editableDiv.innerHTML = localStorage.getItem('personalText_' + mapId) || '';
+    const stored = localStorage.getItem(personalKey);
+    editableDiv.innerHTML = stored !== null ? stored : (offlinePersonal || '');
     editableDiv.contentEditable = 'true';
     editableDiv.oninput = () => {
-      localStorage.setItem('personalText_' + mapId, editableDiv.innerHTML);
+      localStorage.setItem(personalKey, editableDiv.innerHTML);
     };
   }
 

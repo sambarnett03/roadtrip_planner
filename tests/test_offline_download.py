@@ -130,6 +130,20 @@ class OfflineDownloadTests(unittest.TestCase):
         self.assertEqual(bundle['notes'], {'error': 'Shared notes could not be included in this download.'})
         self.assertEqual({pdf['id'] for pdf in bundle['pdfs']}, {'shared-pdf', 'owner-private'})
 
+    def test_online_sidebar_adds_personal_notes_to_downloads(self):
+        # Personal notes never reach the server; the online page adds them to the file.
+        html = self.map_path.read_text()
+        self.assertIn('function attachPersonalNotesToDownload(', html)
+        self.assertIn('if (!offline) attachPersonalNotesToDownload(mapId);', html)
+        self.assertIn('offlinePersonal: offline && offline.personal', html)
+
+    def test_inline_scripts_cannot_end_their_script_tag_early(self):
+        # These files are embedded in <script> tags; a literal "</script" inside
+        # one ends it early in the browser (Node-based JS tests can't catch that).
+        root = Path(__file__).resolve().parent.parent / 'static' / 'js'
+        for name in ('encrypted_notes.js', 'map_download.js', 'map_drive_controls.js'):
+            self.assertNotIn('</script', (root / name).read_text(encoding='utf-8').lower(), name)
+
     def test_bundle_escaping_round_trips_unusual_text(self):
         text = 'a </script> b <!-- c --> &   d   é 🏕️'
         html = insert_offline_bundle('<html><head></head><body></body></html>', {'notes': {'text': text}})

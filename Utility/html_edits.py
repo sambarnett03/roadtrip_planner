@@ -101,6 +101,8 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
     config_json = json.dumps(firebase_config)
     notes_script = (Path(__file__).resolve().parent.parent /
                     "static/js/encrypted_notes.js").read_text(encoding="utf-8")
+    download_script = (Path(__file__).resolve().parent.parent /
+                       "static/js/map_download.js").read_text(encoding="utf-8")
 
     sidebar_code = f"""
     <style>
@@ -268,6 +270,7 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
     <script>{notes_script}</script>
+    <script>{download_script}</script>
     <script>
       const sidebar = document.getElementById("mySidebar");
       const editableDiv = document.getElementById("sharedContent");
@@ -309,9 +312,13 @@ def insert_sidebar(html_path, map_id, owner_id, firebase_config=None):
 
       const notes = createEncryptedNotes({{ auth, docRef, editableDiv, toggle, ownerId, mapId,
                                             offlineNotes: offline && offline.notes,
+                                            offlinePersonal: offline && offline.personal,
                                             savedAt: offline && offline.saved_at }});
       function loadShared() {{ notes.loadShared(); }}
       function loadPersonal() {{ notes.loadPersonal(); }}
+
+      // "Download map" adds this browser's personal notes to the file.
+      if (!offline) attachPersonalNotesToDownload(mapId);
 
       // --- PDF ATTACHMENTS ---
       // Shared mode lists PDFs everyone on the map can see; personal mode

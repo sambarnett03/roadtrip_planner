@@ -7,7 +7,7 @@ from unittest.mock import patch
 import folium
 from flask import Flask
 from Utility.classes import Place, RoadTrip
-from Utility.plotting_functions import add_pin, add_drive_controls, add_route_segment
+from Utility.plotting_functions import add_pin, add_drive_controls, add_route_segment, add_trip_summary
 
 
 class MapHoverTests(unittest.TestCase):
@@ -37,6 +37,18 @@ class MapHoverTests(unittest.TestCase):
         self.assertEqual(html.count('.bindPopup('), 2)
         for text in ['4.2 km', '12 mins', '7 km', '5 mins']:
             self.assertEqual(html.count(text), 2)
+
+    def test_trip_summary_is_a_map_control_below_the_zoom_buttons(self):
+        # A Leaflet control in the zoom buttons' corner stacks under them instead of
+        # covering them (the old fixed-position box hid the +/- buttons).
+        m = folium.Map(location=[51.5, -0.1])
+        add_trip_summary(m, 2 * 3600 + 11 * 60, 185_000)
+        html = m.get_root().render()
+        self.assertIn("L.control({ position: 'topleft' })", html)
+        self.assertIn('2 h 11 min \\u0026middot; 185 km', html)
+        empty = folium.Map(location=[51.5, -0.1])
+        add_trip_summary(empty, 0, 0)
+        self.assertNotIn('trip-summary', empty.get_root().render())
 
     def test_generate_map_embeds_controls_in_online_and_download_versions(self):
         with patch.dict(os.environ, {'GOOGLE_MAPS_KEY': 'AIza' + 'x' * 35}):

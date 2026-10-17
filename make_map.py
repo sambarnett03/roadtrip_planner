@@ -21,7 +21,7 @@ def generate_map(map_id, owner_id, rows, can_edit=True):
     load_dotenv()
     
     if rows == []:
-        m = folium.Map(location=(30, 10), zoom_start=3)
+        m = folium.Map(location=(30, 10), zoom_start=3, tiles=None)
 
     else:
         all_stops, driving_stops, other_stops = load_from_fb_format(rows)
@@ -29,7 +29,7 @@ def generate_map(map_id, owner_id, rows, can_edit=True):
         # Create map centered on the first location
         coords = all_stops.get_all_coords()
         start = np.mean(coords, axis=0)
-        m = folium.Map(location=start, zoom_start=8)
+        m = folium.Map(location=start, zoom_start=8, tiles=None)
 
         # Set up google maps
         gmaps_key = os.environ.get('GOOGLE_MAPS_KEY', '')
@@ -50,14 +50,15 @@ def generate_map(map_id, owner_id, rows, can_edit=True):
         plot_drives(m, driving_stops, gmaps_ids, driving_stops.get_all_coords())
         add_drive_controls(m, markers, map_id, owner_id, can_edit=can_edit)
 
-    # Downloaded copies can't use OpenStreetMap's tiles; this swaps them when opened from disk.
-    add_offline_basemap(m)
+    # OpenFreeMap background (no OSM tiles from folium: tiles=None above). It also
+    # works in downloaded copies, where OpenStreetMap's tile servers block requests.
+    add_basemap(m)
 
     tf = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_", suffix=".html", delete=False)
     tf_no_buttons = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_no_buttons_", suffix=".html", delete=False)
     
-    # Save once and copy: each folium save re-adds the tile layer at the end of the
-    # script, which in the second file undid the offline basemap swap.
+    # Save once and copy: each folium save re-adds layers at the end of the script
+    # (a second save once put OpenStreetMap back over the downloaded background).
     m.save(tf.name)
     shutil.copyfile(tf.name, tf_no_buttons.name)
 

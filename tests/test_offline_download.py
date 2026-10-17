@@ -141,7 +141,7 @@ class OfflineDownloadTests(unittest.TestCase):
         # These files are embedded in <script> tags; a literal "</script" inside
         # one ends it early in the browser (Node-based JS tests can't catch that).
         root = Path(__file__).resolve().parent.parent / 'static' / 'js'
-        for name in ('encrypted_notes.js', 'map_download.js', 'map_drive_controls.js', 'offline_basemap.js'):
+        for name in ('encrypted_notes.js', 'map_download.js', 'map_drive_controls.js', 'basemap.js'):
             self.assertNotIn('</script', (root / name).read_text(encoding='utf-8').lower(), name)
 
     def test_downloaded_copies_show_pdfs_inside_the_page(self):
@@ -151,13 +151,14 @@ class OfflineDownloadTests(unittest.TestCase):
         self.assertIn('function showOfflinePdf(pdf)', html)
         self.assertIn('view.onclick = (event) => { event.preventDefault(); showOfflinePdf(pdf); };', html)
 
-    def test_offline_basemap_runs_after_the_tile_layer_it_replaces(self):
+    def test_basemap_is_added_without_folium_osm_tiles(self):
         import folium
-        from Utility.plotting_functions import add_offline_basemap
-        m = folium.Map(location=[46.5, 7.0])
-        add_offline_basemap(m)
+        from Utility.plotting_functions import add_basemap
+        m = folium.Map(location=[46.5, 7.0], tiles=None)
+        add_basemap(m)
         html = m.get_root().render()
-        self.assertLess(html.index('tile.openstreetmap.org/{z}'), html.index('useOfflineBasemap(map_'))
+        self.assertEqual(html.count('addBasemap(map_'), 1)
+        self.assertNotIn('var tile_layer_', html)
         self.assertEqual(html.count('integrity: \'sha384-'), 3)
 
     def test_bundle_escaping_round_trips_unusual_text(self):

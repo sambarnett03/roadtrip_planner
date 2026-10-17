@@ -1,27 +1,28 @@
-// Downloaded maps are opened from disk (file://). Browsers send no Referer from
-// there, so OpenStreetMap's volunteer tile servers block them ("403 Access
-// blocked"). Swap the background for OpenFreeMap, which needs no Referer or API
-// key, drawn with MapLibre through its Leaflet plugin. Online maps keep OSM.
-function useOfflineBasemap(map) {
-  if (window.location.protocol !== 'file:') return;
+// Background map for every generated map, online and downloaded: OpenFreeMap's
+// "Liberty" style, drawn with MapLibre through its Leaflet plugin. It needs no
+// API key or Referer, so it also works in downloaded maps opened from disk
+// (file://), where OpenStreetMap's tile servers block requests ("403 Access
+// blocked") because browsers send no Referer from there.
+function addBasemap(map) {
+  const offline = window.location.protocol === 'file:';
+  let glLayer = null;
+  let failed = false;
 
-  const isOsm = layer => layer instanceof L.TileLayer &&
-                         String(layer._url).includes('tile.openstreetmap.org');
-  const blocked = [];
-  map.eachLayer(layer => { if (isOsm(layer)) blocked.push(layer); });
-  if (!blocked.length) return;
-  // OSM can't work from file:// in a normal browser, so it is not restored on
-  // failure; a note explains instead of a map full of "Access blocked" tiles.
-  blocked.forEach(layer => map.removeLayer(layer));
-  // Folium can add a layer again later in its script (it does once per save),
-  // so keep OSM off the map if it comes back.
-  map.on('layeradd', event => { if (isOsm(event.layer)) map.removeLayer(event.layer); });
-
-  let notice = null;
   const fail = (reason, detail) => {
-    console.error('Offline background map failed: ' + reason, detail || '');
-    if (notice) return;
-    notice = L.control({ position: 'bottomleft' });
+    console.error('Background map failed: ' + reason, detail || '');
+    if (failed) return;
+    failed = true;
+    if (glLayer) map.removeLayer(glLayer);
+    if (!offline) {
+      // Online pages send a Referer, so OpenStreetMap's own tiles work as a fallback.
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+      return;
+    }
+    // Downloaded copies have no working fallback, so explain instead.
+    const notice = L.control({ position: 'bottomleft' });
     notice.onAdd = () => {
       const box = L.DomUtil.create('div');
       box.setAttribute('role', 'status');
@@ -64,13 +65,13 @@ function useOfflineBasemap(map) {
     integrity: 'sha384-tXYNKOHx4T02jMP7YYCtBxPIv1B5gaA5mcVPBzqMp6d7VzWzxJgI2aWF/nJLrQdS'
   })).then(() => {
     // Attribution (OpenFreeMap, OpenMapTiles, OpenStreetMap) comes from the style.
-    const layer = L.maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(map);
-    const glMap = layer.getMaplibreMap();
+    glLayer = L.maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(map);
+    const glMap = glLayer.getMaplibreMap();
     // Style/tile download problems are reported as events, not exceptions.
     glMap.on('error', event => {
       const error = event && event.error;
       if (!glMap.isStyleLoaded()) fail((error && error.message) || 'the map style did not load', error);
-      else console.warn('Offline background map:', error || event);
+      else console.warn('Background map:', error || event);
     });
   }).catch(error => fail((error && error.message) || String(error), error));
 }

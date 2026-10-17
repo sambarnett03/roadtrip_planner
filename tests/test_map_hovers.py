@@ -1,5 +1,4 @@
 import os
-import re
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -70,11 +69,10 @@ class MapHoverTests(unittest.TestCase):
                     self.assertIn('"can_edit": false', html)
                     self.assertIn("window.location.protocol === 'file:'", html)
                     # Downloaded copies swap OSM's tiles (blocked from file://) for OpenFreeMap.
-                    self.assertIn('useOfflineBasemap(map_', html)
-                    # Each folium save re-adds the tile layer at the end of the script;
-                    # saving twice put OSM back after the swap in the download copy.
-                    tile = re.search(r'var (tile_layer_\w+) = L\.tileLayer', html).group(1)
-                    self.assertEqual(html.count(tile + '.addTo('), 1)
+                    # Both versions get the OpenFreeMap background once, and folium adds
+                    # no OpenStreetMap layer (blocked in downloads; unused online).
+                    self.assertEqual(html.count('addBasemap(map_'), 1)
+                    self.assertNotIn('var tile_layer_', html)
             finally:
                 online_path.unlink()
                 downloaded_path.unlink()

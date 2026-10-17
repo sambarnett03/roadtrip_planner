@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -58,6 +59,10 @@ class MapHoverTests(unittest.TestCase):
                     self.assertIn("window.location.protocol === 'file:'", html)
                     # Downloaded copies swap OSM's tiles (blocked from file://) for OpenFreeMap.
                     self.assertIn('useOfflineBasemap(map_', html)
+                    # Each folium save re-adds the tile layer at the end of the script;
+                    # saving twice put OSM back after the swap in the download copy.
+                    tile = re.search(r'var (tile_layer_\w+) = L\.tileLayer', html).group(1)
+                    self.assertEqual(html.count(tile + '.addTo('), 1)
             finally:
                 online_path.unlink()
                 downloaded_path.unlink()

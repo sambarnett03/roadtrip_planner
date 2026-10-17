@@ -2,7 +2,8 @@ import folium
 import os
 import googlemaps
 import numpy as np
-import tempfile 
+import tempfile
+import shutil
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -55,8 +56,10 @@ def generate_map(map_id, owner_id, rows, can_edit=True):
     tf = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_", suffix=".html", delete=False)
     tf_no_buttons = tempfile.NamedTemporaryFile(prefix=f"map_{map_id}_no_buttons_", suffix=".html", delete=False)
     
+    # Save once and copy: each folium save re-adds the tile layer at the end of the
+    # script, which in the second file undid the offline basemap swap.
     m.save(tf.name)
-    m.save(tf_no_buttons.name)
+    shutil.copyfile(tf.name, tf_no_buttons.name)
 
     session['last_map_path'] = tf_no_buttons.name
 
